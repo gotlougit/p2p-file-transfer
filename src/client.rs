@@ -15,7 +15,7 @@ fn main() {
     let filename = &args[2];
 
     //test values, will be dynamic later on
-    let interface = "127.0.0.1:8000";
+    let interface = "0.0.0.0:8000";
     let server_interface = "127.0.0.1:8888";
 
     //way to get the server to serve a particular file
