@@ -1,3 +1,4 @@
+use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::net::UdpSocket;
@@ -6,11 +7,16 @@ use std::net::UdpSocket;
 const MTU: usize = 1280;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 3 {
+        panic!("Insufficient args entered! USAGE: ./client <file_to_get> <save_file_as>");
+    }
+    let file_to_get = &args[1];
+    let filename = &args[2];
+
     //test values, will be dynamic later on
     let interface = "127.0.0.1:8000";
     let server_interface = "127.0.0.1:8888";
-    let filename = "received_data.txt";
-    let file_to_get = "data.txt";
 
     //way to get the server to serve a particular file
     let request = String::from("GET ") + file_to_get + "\n";

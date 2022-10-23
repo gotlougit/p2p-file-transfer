@@ -1,3 +1,4 @@
+use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::net::UdpSocket;
@@ -9,9 +10,13 @@ use std::thread;
 const MTU: usize = 1280;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("Insufficient args entered! USAGE: ./server <filenametotransmit>");
+    }
     //test values, will be dynamic later on
     let interface = "0.0.0.0:8888";
-    let filename = "data.txt";
+    let filename = &args[1];
 
     //server only responds to these requests
     let validreq = String::from("GET ") + filename + "\n";
