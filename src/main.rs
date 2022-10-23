@@ -36,6 +36,13 @@ fn send_data_in_chunks(sock: UdpSocket, src: std::net::SocketAddr, data: Arc<Vec
         .expect("Failed to send response");
 }
 
+//will be useful to help implement authentication
+fn is_valid_request(request_body : [u8; MTU], validreq : &String) -> bool {
+     let req = 
+         String::from(str::from_utf8(&request_body).expect("Couldn't write buffer as string"));
+    return req[..validreq.len()].eq(validreq);
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -57,6 +64,7 @@ fn main() {
     //print to screen what port we're using here
     println!("I am serving at {}", interface);
 
+    //main loop which listens for connections and serves file
     loop {
         let mut buf = [0u8; MTU];
         let sock = socket.try_clone().expect("Failed to clone socket");
@@ -65,14 +73,12 @@ fn main() {
             //create new thread and send our data to the client
             Ok((_, src)) => {
                 //make sure request is valid
-                let req =
-                    String::from(str::from_utf8(&buf).expect("Couldn't write buffer as string"));
-                if req[..validreq.len()].eq(&validreq) {
+                if is_valid_request(buf, &validreq) {
                     thread::spawn(move || {
                         send_data_in_chunks(sock, src, data_arc_copy);
                     });
                 } else {
-                    print!("Bad request made: {}", req);
+                    print!("Bad request made");
                 }
             }
             Err(e) => {
