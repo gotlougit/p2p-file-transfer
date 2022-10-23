@@ -8,15 +8,15 @@ const MTU: usize = 1280;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
-        panic!("Insufficient args entered! USAGE: ./client <file_to_get> <save_file_as>");
+    if args.len() != 4 {
+        panic!("Insufficient args entered! USAGE: ./client <ip_address_of_server:port> <file_to_get> <save_file_as>");
     }
-    let file_to_get = &args[1];
-    let filename = &args[2];
+    let server_interface = &args[1];
+    let file_to_get = &args[2];
+    let filename = &args[3];
 
     //test values, will be dynamic later on
     let interface = "0.0.0.0:8000";
-    let server_interface = "127.0.0.1:8888";
 
     //way to get the server to serve a particular file
     let request = String::from("GET ") + file_to_get + "\n";
