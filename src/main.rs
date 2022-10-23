@@ -19,7 +19,7 @@ fn main() {
     };
     let metadata = std::fs::metadata(&filename).expect("Couldn't get metadata!");
     let mut data = vec![0; metadata.len() as usize];
-    file.read(&mut data)
+    file.read_exact(&mut data)
         .expect("buffer overflow while reading file!");
     let data_as_arc = Arc::new(data); //this is used from now on
 
