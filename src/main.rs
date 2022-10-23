@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 use std::net::UdpSocket;
+use std::str;
 use std::sync::Arc;
 use std::thread;
 
@@ -11,6 +12,9 @@ fn main() {
     //test values, will be dynamic later on
     let interface = "0.0.0.0:8888";
     let filename = "data.txt";
+
+    //server only responds to these requests
+    let validreq = String::from("GET ") + filename + "\n";
 
     //file handling; just reads the file into vector
     let mut file = match File::open(&filename) {
@@ -33,19 +37,26 @@ fn main() {
         match socket.recv_from(&mut buf) {
             //create new thread and send our data to the client
             Ok((_, src)) => {
-                thread::spawn(move || {
-                    println!("Got connection from {}", src);
-                    let mut start: usize = 0;
-                    //send file in chunks at first
-                    while start + MTU < d.len() {
-                        sock.send_to(&d[start..start + MTU], &src)
+                //make sure request is valid
+                let req =
+                    String::from(str::from_utf8(&buf).expect("Couldn't write buffer as string"));
+                if req[..validreq.len()].eq(&validreq) {
+                    thread::spawn(move || {
+                        println!("Got connection from {}", src);
+                        let mut start: usize = 0;
+                        //send file in chunks at first
+                        while start + MTU < d.len() {
+                            sock.send_to(&d[start..start + MTU], &src)
+                                .expect("Failed to send response");
+                            start += MTU;
+                        }
+                        //when last chunk is smaller than MTU, just send remaining data
+                        sock.send_to(&d[start..d.len()], &src)
                             .expect("Failed to send response");
-                        start += MTU;
-                    }
-                    //when last chunk is smaller than MTU, just send remaining data
-                    sock.send_to(&d[start..d.len()], &src)
-                        .expect("Failed to send response");
-                });
+                    });
+                } else {
+                    print!("Bad request made: {}", req);
+                }
             }
             Err(e) => {
                 eprintln!("Couldn't receive datagram: {}", e);
