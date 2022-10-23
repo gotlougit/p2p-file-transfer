@@ -18,8 +18,7 @@ fn get_file_to_serve(filename: &String) -> Arc<Vec<u8>> {
     let mut data = vec![0; metadata.len() as usize];
     file.read_exact(&mut data)
         .expect("buffer overflow while reading file!");
-    let data_as_arc = Arc::new(data);
-    return data_as_arc;
+    Arc::new(data)
 }
 
 fn send_data_in_chunks(sock: UdpSocket, src: std::net::SocketAddr, data: Arc<Vec<u8>>) {
@@ -40,15 +39,10 @@ fn send_data_in_chunks(sock: UdpSocket, src: std::net::SocketAddr, data: Arc<Vec
 fn is_valid_request(request_body : [u8; MTU], validreq : &String) -> bool {
      let req = 
          String::from(str::from_utf8(&request_body).expect("Couldn't write buffer as string"));
-    return req[..validreq.len()].eq(validreq);
+    req[..validreq.len()].eq(validreq)
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        panic!("Insufficient args entered! USAGE: ./server <filenametotransmit>");
-    }
-    let filename = &args[1];
+fn serve(filename : &String) {
     //server only responds to requests with this particular body
     let validreq = String::from("GET ") + filename + "\n";
 
@@ -78,7 +72,7 @@ fn main() {
                         send_data_in_chunks(sock, src, data_arc_copy);
                     });
                 } else {
-                    print!("Bad request made");
+                    eprintln!("Bad request made");
                 }
             }
             Err(e) => {
@@ -86,4 +80,13 @@ fn main() {
             }
         }
     }
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("Insufficient args entered! USAGE: ./server <filenametotransmit>");
+    }
+    let filename = &args[1];
+    serve(filename); 
 }
