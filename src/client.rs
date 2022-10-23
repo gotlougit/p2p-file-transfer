@@ -1,0 +1,44 @@
+use std::fs::File;
+use std::io::Write;
+use std::net::UdpSocket;
+
+//can be dynamic, set as constant for testing
+const MTU: usize = 1280;
+
+fn main() {
+    //test values, will be dynamic later on
+    let interface = "127.0.0.1:8000";
+    let server_interface = "127.0.0.1:8888";
+    let filename = "received_data.txt";
+    let file_to_get = "data.txt";
+
+    //way to get the server to serve a particular file
+    let request = String::from("GET ") + file_to_get + "\n";
+    let rawreq = request.as_bytes();
+
+    //keep file open for writing to interface
+    let mut file = File::create(filename).expect("Couldn't create file!");
+
+    //open socket and start networking!
+    let socket = UdpSocket::bind(interface).expect("Couldn't bind to specified port!");
+    socket
+        .connect(server_interface)
+        .expect("Couldn't connect to server, is it running?");
+
+    socket.send(&rawreq).expect("Couldn't write to server!");
+
+    //keep reading till there's nothing left to read
+    let mut buf = [0u8; MTU];
+    while let (amt, _) = socket
+        .recv_from(&mut buf)
+        .expect("Couldn't read from socket!")
+    {
+        if amt < MTU {
+            file.write_all(&buf[..amt]);
+            break;
+        } else {
+            file.write_all(&buf);
+        }
+    }
+    println!("Wrote received data to {}", filename);
+}
