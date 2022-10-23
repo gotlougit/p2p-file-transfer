@@ -35,15 +35,21 @@ fn main() {
 
     //keep reading till there's nothing left to read
     let mut buf = [0u8; MTU];
-    while let (amt, _) = socket
-        .recv_from(&mut buf)
-        .expect("Couldn't read from socket!")
-    {
+    loop {
+        let (amt, _) = socket
+            .recv_from(&mut buf)
+            .expect("Couldn't read from socket!");
         if amt < MTU {
-            file.write_all(&buf[..amt]);
+            match file.write_all(&buf[..amt]) {
+                Ok(v) => v,
+                Err(e) => eprint!("Encountered an error while writing: {}",e),
+            };
             break;
         } else {
-            file.write_all(&buf);
+            match file.write_all(&buf) {
+                Ok(v) => v,
+                Err(e) => eprint!("Encountered an error while writing: {}",e),
+            };
         }
     }
     println!("Wrote received data to {}", filename);
