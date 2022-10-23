@@ -35,6 +35,9 @@ fn main() {
     //open socket and start networking!
     let socket = UdpSocket::bind(interface).expect("Couldn't bind to specified port!");
 
+    //print to screen what port we're using here
+    println!("I am serving at {}", interface);
+
     loop {
         let mut buf = [0u8; MTU];
         let sock = socket.try_clone().expect("Failed to clone socket");
