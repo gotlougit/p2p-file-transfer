@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::net::UdpSocket;
 
 mod protocol;
+mod server;
 
 pub fn get_file_size(filename: &String) -> u64 {
     let metadata = std::fs::metadata(filename).expect("Couldn't get metadata!");
@@ -42,41 +43,6 @@ async fn save_data_to_file(socket: UdpSocket, file: &mut File) {
             };
         }
     }
-}
-
-//this function will handle server side code for data transfer
-async fn initiate_transfer_server(
-    socket: &Arc<UdpSocket>,
-    src: std::net::SocketAddr,
-    data: Arc<Vec<u8>>,
-) {
-    //send size of data
-    println!("Sending client size of file");
-    protocol::send_to(socket, &src, &protocol::filesize_packet(data.len())).await;
-    println!("Awaiting response from client..");
-    //await client sending ACK
-    let mut resp = [0u8; protocol::MTU];
-    match socket.recv_from(&mut resp).await {
-        Ok((amt, actualsrc)) => {
-            //if ACK call send_data_in_chunks, which will handle the reliable sending of data
-            if actualsrc == src {
-                if amt == 3 || resp[..4] == protocol::ACK {
-                    println!("Client sent ACK");
-                    println!("Sending data in chunks...");
-                    send_data_in_chunks(socket, src, data).await;
-                    println!("Data sent successfully!");
-                } else {
-                    println!("Client sent NACK");
-                    eprintln!("Client declined to initiate data transfer");
-                }
-            } else {
-                println!("Something went wrong here!");
-            }
-        }
-        Err(e) => {
-            eprintln!("Encountered error: {}", e);
-        }
-    };
 }
 
 async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
@@ -119,28 +85,6 @@ async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
     }
 }
 
-async fn send_data_in_chunks(
-    socket: &Arc<UdpSocket>,
-    src: std::net::SocketAddr,
-    data: Arc<Vec<u8>>,
-) {
-    let mut start: usize = 0;
-    //send file in chunks at first
-    while start + protocol::MTU < data.len() {
-        protocol::send_to(socket, &src, &data[start..start + protocol::MTU].to_vec()).await;
-        start += protocol::MTU;
-    }
-    //when last chunk is smaller than protocol::MTU, just send remaining data
-    protocol::send_to(socket, &src, &data[start..data.len()].to_vec()).await;
-}
-
-//will be useful to help implement authentication
-fn is_valid_request(request_body: [u8; protocol::MTU], validreq: &[u8]) -> bool {
-    let req = String::from(str::from_utf8(&request_body).expect("Couldn't write buffer as string"));
-    let vreq = String::from(str::from_utf8(&validreq).expect("Couldn't write buffer as string"));
-    req[..validreq.len()].eq(&vreq)
-}
-
 async fn serve(filename: &String, authtoken: &String) {
     //server only responds to requests with this particular body
     let validreq = protocol::send_req(filename, authtoken);
@@ -162,25 +106,16 @@ async fn serve(filename: &String, authtoken: &String) {
     //print to screen what port we're using here
     println!("I am serving at {}", interface);
 
-    //main loop which listens for connections and serves file
+    //construct Server object
+    let server_obj = server::init(Arc::clone(&socket), Arc::clone(&data));
+
+    //main loop which listens for connections and serves data depending on stage
     loop {
         let mut buf = [0u8; protocol::MTU];
-        let data_arc_copy = Arc::clone(&data);
         match socket.recv_from(&mut buf).await {
-            //create new thread and send our data to the client
             Ok((_, src)) => {
-                //make sure request is valid
-                let socket_arc_copy = Arc::clone(&socket);
                 println!("Server got data: {}", str::from_utf8(&buf).expect("oof"));
-                if is_valid_request(buf, &validreq) {
-                    println!("Got valid request from {}, creating new thread", src);
-                    //TODO: figure out concurrency so other users can request files as well
-                    initiate_transfer_server(&socket_arc_copy, src, data_arc_copy).await;
-                } else {
-                    //send 0 size packet; client understands this is bad request
-                    protocol::send_to(&socket, &src, &protocol::filesize_packet(0)).await;
-                    eprintln!("Bad request made");
-                }
+                server_obj.lock().await.process_msg(&src, buf, server_obj.clone()).await;
             }
             Err(e) => {
                 eprintln!("Couldn't receive datagram: {}", e);
