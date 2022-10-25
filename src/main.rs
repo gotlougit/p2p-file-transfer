@@ -7,24 +7,11 @@ use std::str;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 
-//can be dynamic, set as constant for testing
-const MTU: usize = 1280;
-const ACK: [u8; 3] = *b"ACK";
-const NACK: [u8; 4] = *b"NACK";
+mod protocol;
 
-fn send_req(filename: &String, auth: &String) -> Vec<u8> {
-    let r = String::from("AUTH ") + auth + &String::from("\nGET ") + filename;
-    r.as_bytes().to_vec()
-}
-
-fn get_file_size(filename: &String) -> u64 {
+pub fn get_file_size(filename: &String) -> u64 {
     let metadata = std::fs::metadata(filename).expect("Couldn't get metadata!");
     metadata.len()
-}
-
-fn filesize_packet(filesize: usize) -> Vec<u8> {
-    let s = String::from("SIZE ") + &filesize.to_string();
-    s.as_bytes().to_vec()
 }
 
 fn get_file_to_serve(filename: &String, filesize: u64) -> Arc<Vec<u8>> {
@@ -39,13 +26,10 @@ fn get_file_to_serve(filename: &String, filesize: u64) -> Arc<Vec<u8>> {
 }
 
 async fn save_data_to_file(socket: UdpSocket, file: &mut File) {
-    let mut buf = [0u8; MTU];
+    let mut buf = [0u8; protocol::MTU];
     loop {
-        let (amt, _) = socket
-            .recv_from(&mut buf)
-            .await
-            .expect("Couldn't read from socket!");
-        if amt < MTU {
+        let (amt, _) = protocol::recv(&socket, &mut buf).await;
+        if amt < protocol::MTU {
             match file.write_all(&buf[..amt]) {
                 Ok(v) => v,
                 Err(e) => eprint!("Encountered an error while writing: {}", e),
@@ -68,18 +52,15 @@ async fn initiate_transfer_server(
 ) {
     //send size of data
     println!("Sending client size of file");
-    socket
-        .send_to(&filesize_packet(data.len()), src)
-        .await
-        .expect("Couldn't send data!");
+    protocol::send_to(socket, &src, &protocol::filesize_packet(data.len())).await;
     println!("Awaiting response from client..");
     //await client sending ACK
-    let mut resp = [0u8; MTU];
+    let mut resp = [0u8; protocol::MTU];
     match socket.recv_from(&mut resp).await {
         Ok((amt, actualsrc)) => {
             //if ACK call send_data_in_chunks, which will handle the reliable sending of data
             if actualsrc == src {
-                if amt == 3 || resp[..4] == ACK {
+                if amt == 3 || resp[..4] == protocol::ACK {
                     println!("Client sent ACK");
                     println!("Sending data in chunks...");
                     send_data_in_chunks(socket, src, data).await;
@@ -100,7 +81,7 @@ async fn initiate_transfer_server(
 
 async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
     //receive data size
-    let mut resp = [0u8; MTU];
+    let mut resp = [0u8; protocol::MTU];
     match socket.recv_from(&mut resp).await {
         Ok((amt, _)) => {
             let size = String::from(
@@ -122,7 +103,7 @@ async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
             if input == "Y\n" || input == "\n" {
                 println!("Initiating transfer...");
                 println!("Sending ACK");
-                socket.send(&ACK).await.expect("Error transferring ACK");
+                protocol::send(&socket, &protocol::ACK.to_vec()).await;
                 println!("Sent ACK");
                 //recieve data in chunks if ACK
                 println!("Receiving file in chunks...");
@@ -130,7 +111,7 @@ async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
                 println!("Wrote received data");
             } else {
                 println!("Stopping transfer");
-                socket.send(&NACK).await.expect("Error transferring NACK");
+                protocol::send(&socket, &protocol::NACK.to_vec()).await;
                 println!("Sent NACK");
             }
         }
@@ -145,22 +126,16 @@ async fn send_data_in_chunks(
 ) {
     let mut start: usize = 0;
     //send file in chunks at first
-    while start + MTU < data.len() {
-        socket
-            .send_to(&data[start..start + MTU], &src)
-            .await
-            .expect("Failed to send response");
-        start += MTU;
+    while start + protocol::MTU < data.len() {
+        protocol::send_to(socket, &src, &data[start..start + protocol::MTU].to_vec()).await;
+        start += protocol::MTU;
     }
-    //when last chunk is smaller than MTU, just send remaining data
-    socket
-        .send_to(&data[start..data.len()], &src)
-        .await
-        .expect("Failed to send response");
+    //when last chunk is smaller than protocol::MTU, just send remaining data
+    protocol::send_to(socket, &src, &data[start..data.len()].to_vec()).await;
 }
 
 //will be useful to help implement authentication
-fn is_valid_request(request_body: [u8; MTU], validreq: &[u8]) -> bool {
+fn is_valid_request(request_body: [u8; protocol::MTU], validreq: &[u8]) -> bool {
     let req = String::from(str::from_utf8(&request_body).expect("Couldn't write buffer as string"));
     let vreq = String::from(str::from_utf8(&validreq).expect("Couldn't write buffer as string"));
     req[..validreq.len()].eq(&vreq)
@@ -168,7 +143,7 @@ fn is_valid_request(request_body: [u8; MTU], validreq: &[u8]) -> bool {
 
 async fn serve(filename: &String, authtoken: &String) {
     //server only responds to requests with this particular body
-    let validreq = send_req(filename, authtoken);
+    let validreq = protocol::send_req(filename, authtoken);
 
     //test values, will be dynamic later on
     let interface = "0.0.0.0:8888";
@@ -189,7 +164,7 @@ async fn serve(filename: &String, authtoken: &String) {
 
     //main loop which listens for connections and serves file
     loop {
-        let mut buf = [0u8; MTU];
+        let mut buf = [0u8; protocol::MTU];
         let data_arc_copy = Arc::clone(&data);
         match socket.recv_from(&mut buf).await {
             //create new thread and send our data to the client
@@ -203,10 +178,7 @@ async fn serve(filename: &String, authtoken: &String) {
                     initiate_transfer_server(&socket_arc_copy, src, data_arc_copy).await;
                 } else {
                     //send 0 size packet; client understands this is bad request
-                    socket
-                        .send_to(&filesize_packet(0), &src)
-                        .await
-                        .expect("Couldn't send data");
+                    protocol::send_to(&socket, &src, &protocol::filesize_packet(0)).await;
                     eprintln!("Bad request made");
                 }
             }
@@ -227,7 +199,7 @@ async fn client(
     let interface = "0.0.0.0:8000";
 
     //way to get the server to serve a particular file
-    let filereq = send_req(file_to_get, authtoken);
+    let filereq = protocol::send_req(file_to_get, authtoken);
 
     //keep file open for writing to interface
     let mut file = File::create(filename).expect("Couldn't create file!");
@@ -238,12 +210,7 @@ async fn client(
         .connect(server_interface)
         .await
         .expect("Couldn't connect to server, is it running?");
-
-    socket
-        .send(&filereq)
-        .await
-        .expect("Couldn't write to server!");
-
+    protocol::send(&socket, &filereq).await; 
     //follow necessary steps for file transfer
     initiate_transfer_client(socket, &mut file).await;
 }
