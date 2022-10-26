@@ -16,16 +16,6 @@ pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
     r.as_bytes().to_vec()
 }
 
-/*
-//helper function to check if request is legitimate
-//will be useful to help implement authentication
-pub fn is_valid_request(request_body: [u8; MTU], validreq: &[u8]) -> bool {
-    let req = String::from(str::from_utf8(&request_body).expect("Couldn't write buffer as string"));
-    let vreq = String::from(str::from_utf8(&validreq).expect("Couldn't write buffer as string"));
-    req[..validreq.len()].eq(&vreq)
-}
-*/
-
 //actual message server sends with filesize
 pub fn filesize_packet(filesize: usize) -> Vec<u8> {
     let s = String::from("SIZE ") + &filesize.to_string();
