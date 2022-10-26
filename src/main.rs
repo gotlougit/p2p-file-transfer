@@ -28,6 +28,7 @@ fn get_file_to_serve(filename: &String, filesize: u64) -> Arc<Vec<u8>> {
 }
 
 async fn save_data_to_file(socket: UdpSocket, file: &mut File) {
+    let mut lastpacket: usize = 0;
     let mut buf = [0u8; protocol::MTU];
     loop {
         let (amt, _) = protocol::recv(&socket, &mut buf).await;
@@ -42,6 +43,12 @@ async fn save_data_to_file(socket: UdpSocket, file: &mut File) {
                 Ok(v) => v,
                 Err(e) => eprint!("Encountered an error while writing: {}", e),
             };
+            println!(
+                "Sending server msg that we have received offset {}",
+                lastpacket
+            );
+            lastpacket += protocol::MTU;
+            protocol::send(&socket, &protocol::last_received_packet(lastpacket)).await;
         }
     }
 }

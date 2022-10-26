@@ -1,6 +1,7 @@
 //implements server object which is capable of handling multiple clients at once
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::str;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
@@ -74,7 +75,11 @@ impl Server {
                 } else if curstate == 2 as u8 {
                     task::spawn(async move {
                         println!("Sending data in chunks...");
-                        let _ = selfcopy.lock().await.send_data_in_chunks(&srcclone).await;
+                        let _ = selfcopy
+                            .lock()
+                            .await
+                            .send_data_in_chunks(&srcclone, message)
+                            .await;
                     });
                 } else if curstate == 3 as u8 {
                     //don't make a new thread for this
@@ -123,7 +128,7 @@ impl Server {
             println!("Client sent ACK");
             self.change_src_state(src, 2);
             //for now we can do this directly
-            let _ = self.send_data_in_chunks(&src).await;
+            let _ = self.send_data_in_chunks(&src, message).await;
         } else {
             println!("Client sent NACK");
             self.change_src_state(src, 3);
@@ -132,26 +137,34 @@ impl Server {
         }
     }
 
-    async fn send_data_in_chunks(&mut self, src: &SocketAddr) {
-        println!("Sending data in chunks...");
-        let mut start: usize = 0;
-        //send file in chunks at first
-        while start + protocol::MTU < self.data.len() {
+    async fn send_data_in_chunks(&mut self, src: &SocketAddr, message: [u8; protocol::MTU]) {
+        let mut offset: usize = 0;
+        if message[..3] != protocol::ACK {
+            //ugly hack to get last offset from client
+            //TODO: make more elegant!
+            let strrep = String::from(str::from_utf8(&message[5..]).expect(""));
+            let processing = strrep.split("\n").collect::<Vec<&str>>();
+            offset = processing[0].to_string().parse().unwrap();
+        }
+        if offset + protocol::MTU < self.data.len() {
+            //send MTU size chunk
+            println!("Sending a chunk...");
             protocol::send_to(
                 &self.socket,
                 &src,
-                &self.data[start..start + protocol::MTU].to_vec(),
+                &self.data[offset..offset + protocol::MTU].to_vec(),
             )
             .await;
-            start += protocol::MTU;
+        } else {
+            //send remaining data and end connection
+            protocol::send_to(
+                &self.socket,
+                &src,
+                &self.data[offset..self.data.len()].to_vec(),
+            )
+            .await;
+            println!("File sent completely");
+            self.end_connection(&src);
         }
-        //when last chunk is smaller than protocol::MTU, just send remaining data
-        protocol::send_to(
-            &self.socket,
-            &src,
-            &self.data[start..self.data.len()].to_vec(),
-        )
-        .await;
-        self.end_connection(&src);
     }
 }

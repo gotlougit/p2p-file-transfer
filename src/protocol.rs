@@ -22,6 +22,12 @@ pub fn filesize_packet(filesize: usize) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
+//tell server which packet has been last received
+pub fn last_received_packet(num: usize) -> Vec<u8> {
+    let s = String::from("LAST ") + &num.to_string() + &String::from("\n");
+    s.as_bytes().to_vec()
+}
+
 //abstractions implemented to later make easier to modify if needed
 pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &Vec<u8>) {
     socket
