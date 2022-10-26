@@ -44,12 +44,20 @@ impl Server {
                 if curstate == 0 as u8 {
                     task::spawn(async move {
                         println!("Running initial server response...");
-                        let _ = selfcopy.lock().await.initiate_transfer_server(&srcclone).await;
+                        let _ = selfcopy
+                            .lock()
+                            .await
+                            .initiate_transfer_server(&srcclone)
+                            .await;
                     });
                 } else if curstate == 1 as u8 {
                     task::spawn(async move {
                         println!("Checking ACK or NACK...");
-                        let _ = selfcopy.lock().await.check_ack_or_nack(&srcclone, message).await;
+                        let _ = selfcopy
+                            .lock()
+                            .await
+                            .check_ack_or_nack(&srcclone, message)
+                            .await;
                     });
                 } else if curstate == 2 as u8 {
                     task::spawn(async move {

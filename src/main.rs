@@ -115,7 +115,11 @@ async fn serve(filename: &String, authtoken: &String) {
         match socket.recv_from(&mut buf).await {
             Ok((_, src)) => {
                 println!("Server got data: {}", str::from_utf8(&buf).expect("oof"));
-                server_obj.lock().await.process_msg(&src, buf, server_obj.clone()).await;
+                server_obj
+                    .lock()
+                    .await
+                    .process_msg(&src, buf, server_obj.clone())
+                    .await;
             }
             Err(e) => {
                 eprintln!("Couldn't receive datagram: {}", e);
@@ -146,7 +150,7 @@ async fn client(
         .connect(server_interface)
         .await
         .expect("Couldn't connect to server, is it running?");
-    protocol::send(&socket, &filereq).await; 
+    protocol::send(&socket, &filereq).await;
     //follow necessary steps for file transfer
     initiate_transfer_client(socket, &mut file).await;
 }
