@@ -7,6 +7,7 @@ use std::str;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 
+mod auth;
 mod protocol;
 mod server;
 
@@ -56,6 +57,7 @@ async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
             //zero size file means error
             if size == "0" {
                 eprintln!("Invalid file entered! Server returned size 0");
+                return;
             }
             //ask user whether they want the file or not
             println!("Size of file is: {}", size);
@@ -86,9 +88,6 @@ async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
 }
 
 async fn serve(filename: &String, authtoken: &String) {
-    //server only responds to requests with this particular body
-    let validreq = protocol::send_req(filename, authtoken);
-
     //test values, will be dynamic later on
     let interface = "0.0.0.0:8888";
 
@@ -107,7 +106,12 @@ async fn serve(filename: &String, authtoken: &String) {
     println!("I am serving at {}", interface);
 
     //construct Server object
-    let server_obj = server::init(Arc::clone(&socket), Arc::clone(&data));
+    let server_obj = server::init(
+        Arc::clone(&socket),
+        Arc::clone(&data),
+        filename.to_string(),
+        authtoken.to_string(),
+    );
 
     //main loop which listens for connections and serves data depending on stage
     loop {
@@ -135,9 +139,6 @@ async fn client(
     authtoken: &String,
     interface: &String,
 ) {
-    //test values, will be dynamic later on
-    //let interface = "0.0.0.0:8000";
-
     //way to get the server to serve a particular file
     let filereq = protocol::send_req(file_to_get, authtoken);
 

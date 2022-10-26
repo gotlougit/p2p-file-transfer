@@ -1,10 +1,50 @@
 //module to help implement authentication
 use std::str;
 
-//helper function to check if request is legitimate
-//will be useful to help implement authentication
-pub fn is_valid_request(request_body: [u8; MTU], validreq: &[u8]) -> bool {
-    let req = String::from(str::from_utf8(&request_body).expect("Couldn't write buffer as string"));
-    let vreq = String::from(str::from_utf8(&validreq).expect("Couldn't write buffer as string"));
-    req[..validreq.len()].eq(&vreq)
+use crate::protocol;
+
+pub struct AuthChecker {
+    valid_tokens: Vec<String>,
+    valid_files: Vec<String>,
+}
+
+//TODO: AuthChecker should eventually support multiple files and tokens
+pub fn init(valid_token: String, valid_file: String) -> AuthChecker {
+    let v = vec![valid_token];
+    let w = vec![valid_file];
+    AuthChecker {
+        valid_tokens: v,
+        valid_files: w,
+    }
+}
+
+impl AuthChecker {
+    pub fn is_valid_request(&self, request_body: [u8; protocol::MTU]) -> bool {
+        let req = String::from(
+            str::from_utf8(&request_body).expect("auth.rs: Couldn't write buffer as string"),
+        );
+        let file_requested = req.split("GET ").collect::<Vec<&str>>()[1].to_string();
+
+        let mut does_file_exist = false;
+        if self
+            .valid_files
+            .iter()
+            .any(|file| file == &file_requested[..file.len()])
+        {
+            does_file_exist = true;
+        }
+        if does_file_exist == false {
+            return false;
+        }
+        let mut is_token_allowed = false;
+        let giventoken = req.split("AUTH ").collect::<Vec<&str>>()[1]
+            .split("\nGET ")
+            .collect::<Vec<&str>>()[0]
+            .to_string();
+
+        if self.valid_tokens.iter().any(|token| token == &giventoken) {
+            is_token_allowed = true;
+        }
+        is_token_allowed
+    }
 }

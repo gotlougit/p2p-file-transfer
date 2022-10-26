@@ -6,6 +6,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use tokio::task;
 
+use crate::auth;
 use crate::protocol;
 
 pub struct Server {
@@ -14,9 +15,15 @@ pub struct Server {
     size_msg: Vec<u8>,
     dummy_size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, u8>,
+    authchecker: auth::AuthChecker,
 }
 
-pub fn init(socket: Arc<UdpSocket>, data: Arc<Vec<u8>>) -> Arc<Mutex<Server>> {
+pub fn init(
+    socket: Arc<UdpSocket>,
+    data: Arc<Vec<u8>>,
+    filename: String,
+    authtoken: String,
+) -> Arc<Mutex<Server>> {
     let filesize = data.len();
     let server_obj = Server {
         socket,
@@ -24,10 +31,15 @@ pub fn init(socket: Arc<UdpSocket>, data: Arc<Vec<u8>>) -> Arc<Mutex<Server>> {
         size_msg: protocol::filesize_packet(filesize),
         dummy_size_msg: protocol::filesize_packet(0),
         src_state_map: HashMap::new(),
+        authchecker: auth::init(authtoken, filename),
     };
     Arc::new(Mutex::new(server_obj))
 }
 
+//one object which spins up tasks depending on what stage the client is at (first connection,
+//deciding to get file, receiving file etc)
+//TODO: have server be able to serve multiple files on demand
+//TODO: have server read file on demand instead of keeping a single file around forever in memory
 impl Server {
     //pass message received here to determine what to do; action will be taken asynchronously
     pub async fn process_msg(
@@ -47,7 +59,7 @@ impl Server {
                         let _ = selfcopy
                             .lock()
                             .await
-                            .initiate_transfer_server(&srcclone)
+                            .initiate_transfer_server(&srcclone, message)
                             .await;
                     });
                 } else if curstate == 1 as u8 {
@@ -73,7 +85,7 @@ impl Server {
             println!("New connection detected, adding to the list..");
             //TODO: implement authentication check here
             self.src_state_map.insert(*src, 0); //start from scratch
-            self.initiate_transfer_server(&src).await; //initialize function
+            self.initiate_transfer_server(&src, message).await; //initialize function
         }
     }
 
@@ -88,12 +100,22 @@ impl Server {
         self.src_state_map.remove(src);
     }
 
-    async fn initiate_transfer_server(&mut self, src: &SocketAddr) {
-        //send size of data
-        println!("Sending client size of file");
-        protocol::send_to(&self.socket, &src, &self.size_msg).await;
-        println!("Awaiting response from client..");
-        self.change_src_state(src, 1);
+    async fn initiate_transfer_server(&mut self, src: &SocketAddr, message: [u8; protocol::MTU]) {
+        if self.authchecker.is_valid_request(message) {
+            //send size of data
+            println!("Client authentication check succeeded...");
+            println!("Sending client size of file");
+            protocol::send_to(&self.socket, &src, &self.size_msg).await;
+            println!("Awaiting response from client...");
+            self.change_src_state(src, 1);
+        } else {
+            //send dummy message as client failed to authenticate
+            println!("Client was not able to be authenticated!");
+            println!("Sending 0 size file...");
+            protocol::send_to(&self.socket, &src, &self.dummy_size_msg).await;
+            //end connection
+            self.end_connection(&src);
+        }
     }
 
     async fn check_ack_or_nack(&mut self, src: &SocketAddr, message: [u8; protocol::MTU]) {
