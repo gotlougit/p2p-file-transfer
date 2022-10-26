@@ -129,9 +129,10 @@ async fn client(
     file_to_get: &String,
     filename: &String,
     authtoken: &String,
+    interface: &String,
 ) {
     //test values, will be dynamic later on
-    let interface = "0.0.0.0:8000";
+    //let interface = "0.0.0.0:8000";
 
     //way to get the server to serve a particular file
     let filereq = protocol::send_req(file_to_get, authtoken);
@@ -154,7 +155,7 @@ async fn client(
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Insufficient args entered! Usage: ./program client <server_interface> <file_to_get> <filename> or ./program server <file_to_serve>");
+        eprintln!("Insufficient args entered! Usage: ./program client <server_interface> <file_to_get> <filename> <client_interface_to_use> or ./program server <file_to_serve>");
     }
 
     let mode = &args[1];
@@ -168,7 +169,8 @@ async fn main() {
         let server_interface = &args[2];
         let file_to_get = &args[3];
         let filename = &args[4];
-        client(server_interface, file_to_get, filename, &auth).await;
+        let interface = &args[5];
+        client(server_interface, file_to_get, filename, &auth, interface).await;
     } else {
         eprintln!("Incorrect args entered!");
     }
