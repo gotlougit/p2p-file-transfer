@@ -10,12 +10,19 @@ use tokio::task;
 use crate::auth;
 use crate::protocol;
 
+enum ClientState {
+    NoState,
+    ACKorNACK,
+    SendFile,
+    EndConn,
+}
+
 pub struct Server {
     socket: Arc<UdpSocket>,
     data: Arc<Vec<u8>>,
     size_msg: Vec<u8>,
     dummy_size_msg: Vec<u8>,
-    src_state_map: HashMap<SocketAddr, u8>,
+    src_state_map: HashMap<SocketAddr, ClientState>,
     authchecker: auth::AuthChecker,
 }
 
@@ -52,49 +59,54 @@ impl Server {
         if self.src_state_map.contains_key(src) {
             println!("Found prev connection, checking state and handling corresponding call..");
             //we are already communicating with client
-            if let Some(&curstate) = self.src_state_map.get(src) {
+            if let Some(curstate) = self.src_state_map.get(src) {
                 let srcclone = src.clone();
-                if curstate == 0_u8 {
-                    task::spawn(async move {
-                        println!("Running initial server response...");
-                        selfcopy
-                            .lock()
-                            .await
-                            .initiate_transfer_server(&srcclone, message)
-                            .await;
-                    });
-                } else if curstate == 1_u8 {
-                    task::spawn(async move {
-                        println!("Checking ACK or NACK...");
-                        selfcopy
-                            .lock()
-                            .await
-                            .check_ack_or_nack(&srcclone, message)
-                            .await;
-                    });
-                } else if curstate == 2_u8 {
-                    task::spawn(async move {
-                        println!("Sending data in chunks...");
-                        selfcopy
-                            .lock()
-                            .await
-                            .send_data_in_chunks(&srcclone, message)
-                            .await;
-                    });
-                } else if curstate == 3_u8 {
-                    //don't make a new thread for this
-                    selfcopy.lock().await.end_connection(src);
+                match curstate {
+                    ClientState::NoState => {
+                        task::spawn(async move {
+                            println!("Running initial server response...");
+                            selfcopy
+                                .lock()
+                                .await
+                                .initiate_transfer_server(&srcclone, message)
+                                .await;
+                        });
+                    }
+                    ClientState::ACKorNACK => {
+                        task::spawn(async move {
+                            println!("Checking ACK or NACK...");
+                            selfcopy
+                                .lock()
+                                .await
+                                .check_ack_or_nack(&srcclone, message)
+                                .await;
+                        });
+                    }
+                    ClientState::SendFile => {
+                        task::spawn(async move {
+                            println!("Sending data in chunks...");
+                            selfcopy
+                                .lock()
+                                .await
+                                .send_data_in_chunks(&srcclone, message)
+                                .await;
+                        });
+                    }
+                    ClientState::EndConn => {
+                        //don't make a new thread for this
+                        selfcopy.lock().await.end_connection(src);
+                    }
                 }
             }
         } else {
             println!("New connection detected, adding to the list..");
             //TODO: implement authentication check here
-            self.src_state_map.insert(*src, 0); //start from scratch
+            self.src_state_map.insert(*src, ClientState::NoState); //start from scratch
             self.initiate_transfer_server(src, message).await; //initialize function
         }
     }
 
-    fn change_src_state(&mut self, src: &SocketAddr, newstate: u8) {
+    fn change_src_state(&mut self, src: &SocketAddr, newstate: ClientState) {
         if let Some(_v) = self.src_state_map.remove(src) {
             self.src_state_map.insert(*src, newstate);
         }
@@ -112,7 +124,7 @@ impl Server {
             println!("Sending client size of file");
             protocol::send_to(&self.socket, src, &self.size_msg).await;
             println!("Awaiting response from client...");
-            self.change_src_state(src, 1);
+            self.change_src_state(src, ClientState::ACKorNACK);
         } else {
             //send dummy message as client failed to authenticate
             println!("Client was not able to be authenticated!");
@@ -126,12 +138,12 @@ impl Server {
     async fn check_ack_or_nack(&mut self, src: &SocketAddr, message: [u8; protocol::MTU]) {
         if message[..3] == protocol::ACK {
             println!("Client sent ACK");
-            self.change_src_state(src, 2);
+            self.change_src_state(src, ClientState::SendFile);
             //for now we can do this directly
             self.send_data_in_chunks(src, message).await;
         } else {
             println!("Client sent NACK");
-            self.change_src_state(src, 3);
+            self.change_src_state(src, ClientState::EndConn);
             //directly do this since connection needs to be closed anyway
             self.end_connection(src);
         }
