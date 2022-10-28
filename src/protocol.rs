@@ -13,9 +13,10 @@ pub enum ClientState {
 
 pub const MTU: usize = 1280;
 
-//two important messages implemented as constants
+//important messages implemented as constants
 pub const ACK: [u8; 3] = *b"ACK";
 pub const NACK: [u8; 4] = *b"NACK";
+pub const END: [u8; 3] = *b"END";
 
 //initial request client sends; consists of auth token and name of file to get
 pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
@@ -33,6 +34,19 @@ pub fn filesize_packet(filesize: usize) -> Vec<u8> {
 pub fn last_received_packet(num: usize) -> Vec<u8> {
     let s = String::from("LAST ") + &num.to_string() + &String::from("\n");
     s.as_bytes().to_vec()
+}
+
+//builds data packet encapsulated with required info about where packet actually goes
+pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
+    let s = String::from("OFFSET: ")
+        + &offset.to_string()
+        + "\n"
+        + &String::from("SIZE: ")
+        + &message.len().to_string()
+        + "\n";
+    let mut b1 = s.as_bytes().to_vec();
+    b1.extend(message);
+    b1
 }
 
 //abstractions implemented to later make easier to modify if needed
