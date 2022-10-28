@@ -2,6 +2,13 @@
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 
+pub enum ClientState {
+    NoState,
+    ACKorNACK,
+    SendFile,
+    EndConn,
+}
+
 //some constants defined for convenience
 
 pub const MTU: usize = 1280;

@@ -1,17 +1,16 @@
 use std::env;
 use std::fs::File;
-use std::io;
 use std::io::Read;
-use std::io::Write;
 use std::str;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 
 mod auth;
+mod client;
 mod protocol;
 mod server;
 
-pub fn get_file_size(filename: &String) -> u64 {
+fn get_file_size(filename: &String) -> u64 {
     let metadata = std::fs::metadata(filename).expect("Couldn't get metadata!");
     metadata.len()
 }
@@ -25,73 +24,6 @@ fn get_file_to_serve(filename: &String, filesize: u64) -> Arc<Vec<u8>> {
     file.read_exact(&mut data)
         .expect("buffer overflow while reading file!");
     Arc::new(data)
-}
-
-async fn save_data_to_file(socket: UdpSocket, file: &mut File) {
-    let mut lastpacket: usize = 0;
-    let mut buf = [0u8; protocol::MTU];
-    loop {
-        let (amt, _) = protocol::recv(&socket, &mut buf).await;
-        if amt < protocol::MTU {
-            match file.write_all(&buf[..amt]) {
-                Ok(v) => v,
-                Err(e) => eprint!("Encountered an error while writing: {}", e),
-            };
-            break;
-        } else {
-            match file.write_all(&buf) {
-                Ok(v) => v,
-                Err(e) => eprint!("Encountered an error while writing: {}", e),
-            };
-            println!(
-                "Sending server msg that we have received offset {}",
-                lastpacket
-            );
-            lastpacket += protocol::MTU;
-            protocol::send(&socket, &protocol::last_received_packet(lastpacket)).await;
-        }
-    }
-}
-
-async fn initiate_transfer_client(socket: UdpSocket, file: &mut File) {
-    //receive data size
-    let mut resp = [0u8; protocol::MTU];
-    match socket.recv_from(&mut resp).await {
-        Ok((amt, _)) => {
-            let size = String::from(
-                str::from_utf8(&resp[5..amt]).expect("Couldn't read buffer into string!"),
-            );
-            //zero size file means error
-            if size == "0" {
-                eprintln!("Invalid file entered! Server returned size 0");
-                return;
-            }
-            //ask user whether they want the file or not
-            println!("Size of file is: {}", size);
-            println!("Initiate transfer? (Y/N)");
-            let stdin = io::stdin();
-            let mut input = String::new();
-            stdin
-                .read_line(&mut input)
-                .expect("Couldn't read from STDIN!");
-            //send ACK/NACK
-            if input == "Y\n" || input == "\n" {
-                println!("Initiating transfer...");
-                println!("Sending ACK");
-                protocol::send(&socket, &protocol::ACK.to_vec()).await;
-                println!("Sent ACK");
-                //recieve data in chunks if ACK
-                println!("Receiving file in chunks...");
-                save_data_to_file(socket, file).await;
-                println!("Wrote received data");
-            } else {
-                println!("Stopping transfer");
-                protocol::send(&socket, &protocol::NACK.to_vec()).await;
-                println!("Sent NACK");
-            }
-        }
-        Err(e) => eprintln!("Error while reading response! {}", e),
-    }
 }
 
 async fn serve(filename: &String, authtoken: &String) {
@@ -146,21 +78,36 @@ async fn client(
     authtoken: &String,
     interface: &String,
 ) {
-    //way to get the server to serve a particular file
-    let filereq = protocol::send_req(file_to_get, authtoken);
-
-    //keep file open for writing to interface
-    let mut file = File::create(filename).expect("Couldn't create file!");
-
     //open socket and start networking!
-    let socket = UdpSocket::bind(interface).await.expect("Couldn't connect!");
+    let socket = Arc::new(UdpSocket::bind(interface).await.expect("Couldn't connect!"));
     socket
         .connect(server_interface)
         .await
         .expect("Couldn't connect to server, is it running?");
-    protocol::send(&socket, &filereq).await;
-    //follow necessary steps for file transfer
-    initiate_transfer_client(socket, &mut file).await;
+
+    //create Client object and send initial request to server
+    let client_obj = client::init(Arc::clone(&socket), file_to_get, filename, authtoken);
+    client_obj.lock().await.init_connection().await;
+    //listen for server responses and deal with them accordingly
+    loop {
+        let mut buf = [0u8; protocol::MTU];
+        let amt: usize = if let Ok((amt, _)) = socket.recv_from(&mut buf).await {
+            amt
+        } else {
+            0
+        };
+        println!("Client got data: {}", str::from_utf8(&buf).expect("oof"));
+        //make sure program exits gracefully
+        let continue_with_loop = client_obj
+            .lock()
+            .await
+            .process_msg(buf, amt, client_obj.clone())
+            .await;
+        println!("continue with loop: {}", continue_with_loop);
+        if !continue_with_loop {
+            break;
+        }
+    }
 }
 
 #[tokio::main]
