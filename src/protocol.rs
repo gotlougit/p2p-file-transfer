@@ -1,5 +1,6 @@
 //define both messages that client and server exchange and the interfaces they will use to do so
 use std::net::SocketAddr;
+use std::str;
 use tokio::net::UdpSocket;
 
 pub enum ClientState {
@@ -22,6 +23,24 @@ pub const END: [u8; 3] = *b"END";
 pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
     let r = String::from("AUTH ") + auth + &String::from("\nGET ") + filename;
     r.as_bytes().to_vec()
+}
+
+pub fn parse_send_req(message: [u8; MTU]) -> (String, String) {
+    let req = String::from(
+        str::from_utf8(&message).expect("protocol.rs: Couldn't write buffer as string"),
+    );
+
+    let file_requested = match req.split("GET ").collect::<Vec<&str>>().get(1) {
+        Some(x) => x.to_string(),
+        None => String::from(""),
+    };
+
+    let giventoken = match req.split("AUTH ").collect::<Vec<&str>>().get(1) {
+        Some(x) => x.to_string(),
+        None => String::from(""),
+    };
+
+    (file_requested, giventoken)
 }
 
 //actual message server sends with filesize

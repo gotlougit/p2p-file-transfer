@@ -20,10 +20,7 @@ pub fn init(valid_token: String, valid_file: String) -> AuthChecker {
 
 impl AuthChecker {
     pub fn is_valid_request(&self, request_body: [u8; protocol::MTU]) -> bool {
-        let req = String::from(
-            str::from_utf8(&request_body).expect("auth.rs: Couldn't write buffer as string"),
-        );
-        let file_requested = req.split("GET ").collect::<Vec<&str>>()[1].to_string();
+        let (file_requested, giventoken) = protocol::parse_send_req(request_body);
 
         let mut does_file_exist = false;
         if self
@@ -37,11 +34,6 @@ impl AuthChecker {
             return false;
         }
         let mut is_token_allowed = false;
-        let giventoken = req.split("AUTH ").collect::<Vec<&str>>()[1]
-            .split("\nGET ")
-            .collect::<Vec<&str>>()[0]
-            .to_string();
-
         if self.valid_tokens.iter().any(|token| token == &giventoken) {
             is_token_allowed = true;
         }
