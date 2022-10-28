@@ -55,19 +55,13 @@ async fn serve(filename: &String, authtoken: &String) {
     //main loop which listens for connections and serves data depending on stage
     loop {
         let mut buf = [0u8; protocol::MTU];
-        match socket.recv_from(&mut buf).await {
-            Ok((_, src)) => {
-                println!("Server got data: {}", str::from_utf8(&buf).expect("oof"));
-                server_obj
-                    .lock()
-                    .await
-                    .process_msg(&src, buf, server_obj.clone())
-                    .await;
-            }
-            Err(e) => {
-                eprintln!("Couldn't receive datagram: {}", e);
-            }
-        }
+        let (_, src) = protocol::recv(&socket, &mut buf).await;
+        println!("Server got data: {}", str::from_utf8(&buf).expect("oof"));
+        server_obj
+            .lock()
+            .await
+            .process_msg(&src, buf, server_obj.clone())
+            .await;
     }
 }
 
@@ -91,11 +85,7 @@ async fn client(
     //listen for server responses and deal with them accordingly
     loop {
         let mut buf = [0u8; protocol::MTU];
-        let amt: usize = if let Ok((amt, _)) = socket.recv_from(&mut buf).await {
-            amt
-        } else {
-            0
-        };
+        let (amt, _) = protocol::recv(&socket, &mut buf).await;
         println!("Client got data: {}", str::from_utf8(&buf).expect("oof"));
         //make sure program exits gracefully
         let continue_with_loop = client_obj
@@ -103,8 +93,8 @@ async fn client(
             .await
             .process_msg(buf, amt, client_obj.clone())
             .await;
-        println!("continue with loop: {}", continue_with_loop);
         if !continue_with_loop {
+            println!("Client exiting...");
             break;
         }
     }
