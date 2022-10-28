@@ -33,7 +33,7 @@ impl AuthChecker {
         {
             does_file_exist = true;
         }
-        if does_file_exist == false {
+        if !does_file_exist {
             return false;
         }
         let mut is_token_allowed = false;

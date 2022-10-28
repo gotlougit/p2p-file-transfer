@@ -31,14 +31,14 @@ pub fn last_received_packet(num: usize) -> Vec<u8> {
 //abstractions implemented to later make easier to modify if needed
 pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &Vec<u8>) {
     socket
-        .send_to(&message, src)
+        .send_to(message, src)
         .await
         .expect("protocol.rs: Send request failed!");
 }
 
 pub async fn send(socket: &UdpSocket, message: &Vec<u8>) {
     socket
-        .send(&message)
+        .send(message)
         .await
         .expect("protocol.rs: Send request failed!");
 }

@@ -54,43 +54,43 @@ impl Server {
             //we are already communicating with client
             if let Some(&curstate) = self.src_state_map.get(src) {
                 let srcclone = src.clone();
-                if curstate == 0 as u8 {
+                if curstate == 0_u8 {
                     task::spawn(async move {
                         println!("Running initial server response...");
-                        let _ = selfcopy
+                        selfcopy
                             .lock()
                             .await
                             .initiate_transfer_server(&srcclone, message)
                             .await;
                     });
-                } else if curstate == 1 as u8 {
+                } else if curstate == 1_u8 {
                     task::spawn(async move {
                         println!("Checking ACK or NACK...");
-                        let _ = selfcopy
+                        selfcopy
                             .lock()
                             .await
                             .check_ack_or_nack(&srcclone, message)
                             .await;
                     });
-                } else if curstate == 2 as u8 {
+                } else if curstate == 2_u8 {
                     task::spawn(async move {
                         println!("Sending data in chunks...");
-                        let _ = selfcopy
+                        selfcopy
                             .lock()
                             .await
                             .send_data_in_chunks(&srcclone, message)
                             .await;
                     });
-                } else if curstate == 3 as u8 {
+                } else if curstate == 3_u8 {
                     //don't make a new thread for this
-                    selfcopy.lock().await.end_connection(&src);
+                    selfcopy.lock().await.end_connection(src);
                 }
             }
         } else {
             println!("New connection detected, adding to the list..");
             //TODO: implement authentication check here
             self.src_state_map.insert(*src, 0); //start from scratch
-            self.initiate_transfer_server(&src, message).await; //initialize function
+            self.initiate_transfer_server(src, message).await; //initialize function
         }
     }
 
@@ -110,16 +110,16 @@ impl Server {
             //send size of data
             println!("Client authentication check succeeded...");
             println!("Sending client size of file");
-            protocol::send_to(&self.socket, &src, &self.size_msg).await;
+            protocol::send_to(&self.socket, src, &self.size_msg).await;
             println!("Awaiting response from client...");
             self.change_src_state(src, 1);
         } else {
             //send dummy message as client failed to authenticate
             println!("Client was not able to be authenticated!");
             println!("Sending 0 size file...");
-            protocol::send_to(&self.socket, &src, &self.dummy_size_msg).await;
+            protocol::send_to(&self.socket, src, &self.dummy_size_msg).await;
             //end connection
-            self.end_connection(&src);
+            self.end_connection(src);
         }
     }
 
@@ -128,12 +128,12 @@ impl Server {
             println!("Client sent ACK");
             self.change_src_state(src, 2);
             //for now we can do this directly
-            let _ = self.send_data_in_chunks(&src, message).await;
+            self.send_data_in_chunks(src, message).await;
         } else {
             println!("Client sent NACK");
             self.change_src_state(src, 3);
             //directly do this since connection needs to be closed anyway
-            self.end_connection(&src);
+            self.end_connection(src);
         }
     }
 
@@ -151,7 +151,7 @@ impl Server {
             println!("Sending a chunk...");
             protocol::send_to(
                 &self.socket,
-                &src,
+                src,
                 &self.data[offset..offset + protocol::MTU].to_vec(),
             )
             .await;
@@ -159,12 +159,12 @@ impl Server {
             //send remaining data and end connection
             protocol::send_to(
                 &self.socket,
-                &src,
+                src,
                 &self.data[offset..self.data.len()].to_vec(),
             )
             .await;
             println!("File sent completely");
-            self.end_connection(&src);
+            self.end_connection(src);
         }
     }
 }
