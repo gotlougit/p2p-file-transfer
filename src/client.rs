@@ -2,7 +2,6 @@
 use std::fs::{remove_file, File};
 use std::io;
 use std::io::Write;
-use std::net::SocketAddr;
 use std::str;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -18,6 +17,7 @@ pub struct Client {
     file_save_as: String,
     authtoken: String,
     lastpacket: usize,
+    filesize: usize,
     state: protocol::ClientState,
 }
 
@@ -38,6 +38,7 @@ pub fn init(
         file_save_as: filename.to_string(),
         authtoken: authtoken.to_string(),
         lastpacket: 0,
+        filesize: 0,
         state: protocol::ClientState::NoState,
     };
     Arc::new(Mutex::new(client_obj))
@@ -55,8 +56,12 @@ impl Client {
         self.state = protocol::ClientState::ACKorNACK;
     }
 
-    fn get_user_decision(&self, size: usize) -> bool {
-        println!("Size of file is: {}", size);
+    fn get_user_decision(&self) -> bool {
+        if self.filesize == 0 {
+            eprintln!("Server sent file size 0!");
+            return false;
+        }
+        println!("Size of file is: {}", self.filesize);
         println!("Initiate transfer? (Y/N)");
         let stdin = io::stdin();
         let mut input = String::new();
@@ -97,7 +102,11 @@ impl Client {
             }
             protocol::ClientState::ACKorNACK => {
                 //ask user whether they want the file or not
-                let decision = self.get_user_decision(size);
+                let fsize = String::from(
+                    str::from_utf8(&message[5..size]).expect("Couldn't read buffer into string!"),
+                );
+                self.filesize = fsize.parse::<usize>().unwrap();
+                let decision = self.get_user_decision();
                 //send ACK/NACK
                 if decision {
                     println!("Sending ACK");
@@ -118,6 +127,11 @@ impl Client {
             }
             protocol::ClientState::SendFile => {
                 println!("Client has to receive the file");
+                /*
+                task::spawn(async move {
+                    selfcopy.lock().await.save_data_to_file(message, size).await
+                });
+                */
                 self.save_data_to_file(message, size).await;
                 return true;
             }
@@ -140,7 +154,6 @@ impl Client {
                 Ok(v) => v,
                 Err(e) => eprint!("Encountered an error while writing: {}", e),
             };
-            println!("File has been received in full, ending...");
             self.state = protocol::ClientState::EndConn;
             self.end_connection();
         } else {
