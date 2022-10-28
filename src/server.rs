@@ -94,7 +94,7 @@ impl Server {
                     }
                     ClientState::EndConn => {
                         //don't make a new thread for this
-                        selfcopy.lock().await.end_connection(src);
+                        selfcopy.lock().await.end_connection(src).await;
                     }
                 }
             }
@@ -112,8 +112,9 @@ impl Server {
         }
     }
 
-    fn end_connection(&mut self, src: &SocketAddr) {
-        println!("Ending connection with {}", src);
+    async fn end_connection(&mut self, src: &SocketAddr) {
+        println!("Sending END to {}", src);
+        protocol::send_to(&self.socket, src, &protocol::END.to_vec()).await;
         self.src_state_map.remove(src);
     }
 
@@ -131,7 +132,7 @@ impl Server {
             println!("Sending 0 size file...");
             protocol::send_to(&self.socket, src, &self.dummy_size_msg).await;
             //end connection
-            self.end_connection(src);
+            self.end_connection(src).await;
         }
     }
 
@@ -145,7 +146,7 @@ impl Server {
             println!("Client sent NACK");
             self.change_src_state(src, ClientState::EndConn);
             //directly do this since connection needs to be closed anyway
-            self.end_connection(src);
+            self.end_connection(src).await;
         }
     }
 
@@ -176,7 +177,7 @@ impl Server {
             )
             .await;
             println!("File sent completely");
-            self.end_connection(src);
+            self.end_connection(src).await;
         }
     }
 }
