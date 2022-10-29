@@ -55,12 +55,12 @@ async fn serve(filename: &String, authtoken: &String) {
     //main loop which listens for connections and serves data depending on stage
     loop {
         let mut buf = [0u8; protocol::MTU];
-        let (_, src) = protocol::recv(&socket, &mut buf).await;
+        let (amt, src) = protocol::recv(&socket, &mut buf).await;
         println!("Server got data: {}", str::from_utf8(&buf).expect("oof"));
         server_obj
             .lock()
             .await
-            .process_msg(&src, buf, server_obj.clone())
+            .process_msg(&src, buf, amt, server_obj.clone())
             .await;
     }
 }

@@ -54,6 +54,7 @@ impl Server {
         &mut self,
         src: &SocketAddr,
         message: [u8; protocol::MTU],
+        amt: usize,
         selfcopy: Arc<Mutex<Server>>,
     ) {
         if self.src_state_map.contains_key(src) {
@@ -68,7 +69,7 @@ impl Server {
                             selfcopy
                                 .lock()
                                 .await
-                                .initiate_transfer_server(&srcclone, message)
+                                .initiate_transfer_server(&srcclone, message, amt)
                                 .await;
                         });
                     }
@@ -102,7 +103,7 @@ impl Server {
             println!("New connection detected, adding to the list..");
             //TODO: implement authentication check here
             self.src_state_map.insert(*src, ClientState::NoState); //start from scratch
-            self.initiate_transfer_server(src, message).await; //initialize function
+            self.initiate_transfer_server(src, message, amt).await; //initialize function
         }
     }
 
@@ -118,8 +119,13 @@ impl Server {
         self.src_state_map.remove(src);
     }
 
-    async fn initiate_transfer_server(&mut self, src: &SocketAddr, message: [u8; protocol::MTU]) {
-        if self.authchecker.is_valid_request(message) {
+    async fn initiate_transfer_server(
+        &mut self,
+        src: &SocketAddr,
+        message: [u8; protocol::MTU],
+        amt: usize,
+    ) {
+        if self.authchecker.is_valid_request(message, amt) {
             //send size of data
             println!("Client authentication check succeeded...");
             println!("Sending client size of file");

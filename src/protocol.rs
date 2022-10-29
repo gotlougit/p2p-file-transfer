@@ -25,9 +25,9 @@ pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
     r.as_bytes().to_vec()
 }
 
-pub fn parse_send_req(message: [u8; MTU]) -> (String, String) {
+pub fn parse_send_req(message: [u8; MTU], amt: usize) -> (String, String) {
     let req = String::from(
-        str::from_utf8(&message).expect("protocol.rs: Couldn't write buffer as string"),
+        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
     );
 
     let file_requested = match req.split("GET ").collect::<Vec<&str>>().get(1) {
@@ -36,7 +36,10 @@ pub fn parse_send_req(message: [u8; MTU]) -> (String, String) {
     };
 
     let giventoken = match req.split("AUTH ").collect::<Vec<&str>>().get(1) {
-        Some(x) => x.to_string(),
+        Some(x) => match x.to_string().split("\n").collect::<Vec<&str>>().get(0) {
+            Some(y) => y.to_string(),
+            None => String::from(""),
+        },
         None => String::from(""),
     };
 
