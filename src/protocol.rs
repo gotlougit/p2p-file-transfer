@@ -42,6 +42,17 @@ pub fn parse_end(message: [u8; MTU], amt: usize) -> bool {
     return false;
 }
 
+fn parse_generic_req(message: [u8; MTU], amt: usize) -> String {
+    let req = match str::from_utf8(&message[..amt]) {
+        Ok(x) => x.to_string(),
+        Err(_) => {
+            println!("Parse error detected, returning empty string...");
+            String::from("")
+        },
+    };
+    req
+}
+
 //initial request client sends; consists of auth token and name of file to get
 pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
     let r = String::from("AUTH ") + auth + &String::from("\nGET ") + filename;
@@ -49,9 +60,11 @@ pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
 }
 
 pub fn parse_send_req(message: [u8; MTU], amt: usize) -> (String, String) {
-    let req = String::from(
-        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
-    );
+    let req = parse_generic_req(message, amt);
+    
+    if req.len() == 0 { //invalid request
+        return (String::from(""), String::from(""));
+    }
 
     let file_requested = match req.split("GET ").collect::<Vec<&str>>().get(1) {
         Some(x) => x.to_string(),
@@ -76,9 +89,10 @@ pub fn filesize_packet(filesize: usize) -> Vec<u8> {
 }
 
 pub fn parse_filesize_packet(message: [u8; MTU], amt: usize) -> usize {
-    let req = String::from(
-        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
-    );
+    let req = parse_generic_req(message, amt);
+    if req.len() == 0 {
+        return 0;
+    }
     let size = match req.split("SIZE ").collect::<Vec<&str>>().get(1) {
         Some(x) => x.to_string().parse::<usize>().unwrap(),
         None => 0,
@@ -96,9 +110,10 @@ pub fn parse_last_received(message: [u8; MTU], amt: usize) -> usize {
     if parse_ack(message, amt) {
         return 0;
     }
-    let req = String::from(
-        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
-    );
+    let req = parse_generic_req(message, amt);
+    if req.len() == 0 {
+        return 0;
+    }
     let lastrecv = match req.split("LAST ").collect::<Vec<&str>>().get(1) {
         Some(x) => x.to_string().parse::<usize>().unwrap(),
         None => 0,
@@ -125,9 +140,11 @@ pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
 }
 
 pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
-    let req = String::from(
-        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
-    );
+    let req = parse_generic_req(message, amt);
+    if req.len() == 0 {
+        let emptyvector : Vec<u8> = Vec::new();
+        return (0, emptyvector);
+    }
     let offset = match req.split("OFFSET: ").collect::<Vec<&str>>().get(1) {
         Some(x) => match x.to_string().split("\n").collect::<Vec<&str>>().get(0) {
             Some(y) => y.to_string().parse::<usize>().unwrap(),
