@@ -79,7 +79,7 @@ impl Server {
                             selfcopy
                                 .lock()
                                 .await
-                                .check_ack_or_nack(&srcclone, message)
+                                .check_ack_or_nack(&srcclone, message, amt)
                                 .await;
                         });
                     }
@@ -89,7 +89,7 @@ impl Server {
                             selfcopy
                                 .lock()
                                 .await
-                                .send_data_in_chunks(&srcclone, message)
+                                .send_data_in_chunks(&srcclone, message, amt)
                                 .await;
                         });
                     }
@@ -142,12 +142,17 @@ impl Server {
         }
     }
 
-    async fn check_ack_or_nack(&mut self, src: &SocketAddr, message: [u8; protocol::MTU]) {
-        if message[..3] == protocol::ACK {
+    async fn check_ack_or_nack(
+        &mut self,
+        src: &SocketAddr,
+        message: [u8; protocol::MTU],
+        amt: usize,
+    ) {
+        if protocol::parse_ack(message, amt) {
             println!("Client sent ACK");
             self.change_src_state(src, ClientState::SendFile);
             //for now we can do this directly
-            self.send_data_in_chunks(src, message).await;
+            self.send_data_in_chunks(src, message, amt).await;
         } else {
             println!("Client sent NACK");
             self.change_src_state(src, ClientState::EndConn);
@@ -156,15 +161,13 @@ impl Server {
         }
     }
 
-    async fn send_data_in_chunks(&mut self, src: &SocketAddr, message: [u8; protocol::MTU]) {
-        let mut offset: usize = 0;
-        if message[..3] != protocol::ACK {
-            //ugly hack to get last offset from client
-            //TODO: make more elegant!
-            let strrep = String::from(str::from_utf8(&message[5..]).expect(""));
-            let processing = strrep.split("\n").collect::<Vec<&str>>();
-            offset = processing[0].to_string().parse().unwrap();
-        }
+    async fn send_data_in_chunks(
+        &mut self,
+        src: &SocketAddr,
+        message: [u8; protocol::MTU],
+        amt: usize,
+    ) {
+        let offset = protocol::parse_last_received(message, amt);
         if offset + protocol::MTU < self.data.len() {
             //send MTU size chunk
             println!("Sending a chunk...");

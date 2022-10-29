@@ -102,10 +102,7 @@ impl Client {
             }
             protocol::ClientState::ACKorNACK => {
                 //ask user whether they want the file or not
-                let fsize = String::from(
-                    str::from_utf8(&message[5..size]).expect("Couldn't read buffer into string!"),
-                );
-                self.filesize = fsize.parse::<usize>().unwrap();
+                self.filesize = protocol::parse_filesize_packet(message, size);
                 let decision = self.get_user_decision();
                 //send ACK/NACK
                 if decision {

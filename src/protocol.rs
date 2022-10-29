@@ -16,8 +16,31 @@ pub const MTU: usize = 1280;
 
 //important messages implemented as constants
 pub const ACK: [u8; 3] = *b"ACK";
+
+pub fn parse_ack(message: [u8; MTU], amt: usize) -> bool {
+    if amt == 3 && message[..3] == ACK {
+        return true;
+    }
+    return false;
+}
+
 pub const NACK: [u8; 4] = *b"NACK";
+
+pub fn parse_nack(message: [u8; MTU], amt: usize) -> bool {
+    if amt == 4 && message[..4] == NACK {
+        return true;
+    }
+    return false;
+}
+
 pub const END: [u8; 3] = *b"END";
+
+pub fn parse_end(message: [u8; MTU], amt: usize) -> bool {
+    if amt == 3 && message[..3] == END {
+        return true;
+    }
+    return false;
+}
 
 //initial request client sends; consists of auth token and name of file to get
 pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
@@ -52,23 +75,76 @@ pub fn filesize_packet(filesize: usize) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
+pub fn parse_filesize_packet(message: [u8; MTU], amt: usize) -> usize {
+    let req = String::from(
+        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
+    );
+    let size = match req.split("SIZE ").collect::<Vec<&str>>().get(1) {
+        Some(x) => x.to_string().parse::<usize>().unwrap(),
+        None => 0,
+    };
+    size
+}
+
 //tell server which packet has been last received
 pub fn last_received_packet(num: usize) -> Vec<u8> {
-    let s = String::from("LAST ") + &num.to_string() + &String::from("\n");
+    let s = String::from("LAST ") + &num.to_string();
     s.as_bytes().to_vec()
 }
 
+pub fn parse_last_received(message: [u8; MTU], amt: usize) -> usize {
+    if parse_ack(message, amt) {
+        return 0;
+    }
+    let req = String::from(
+        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
+    );
+    let lastrecv = match req.split("LAST ").collect::<Vec<&str>>().get(1) {
+        Some(x) => x.to_string().parse::<usize>().unwrap(),
+        None => 0,
+    };
+    lastrecv
+}
+
 //builds data packet encapsulated with required info about where packet actually goes
-pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
+fn build_data_packet_header(offset: usize, size: usize) -> String {
     let s = String::from("OFFSET: ")
         + &offset.to_string()
         + "\n"
         + &String::from("SIZE: ")
-        + &message.len().to_string()
+        + &size.to_string()
         + "\n";
+    s
+}
+
+pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
+    let s = build_data_packet_header(offset, message.len());
     let mut b1 = s.as_bytes().to_vec();
     b1.extend(message);
     b1
+}
+
+pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
+    let req = String::from(
+        str::from_utf8(&message[..amt]).expect("protocol.rs: Couldn't write buffer as string"),
+    );
+    let offset = match req.split("OFFSET: ").collect::<Vec<&str>>().get(1) {
+        Some(x) => match x.to_string().split("\n").collect::<Vec<&str>>().get(0) {
+            Some(y) => y.to_string().parse::<usize>().unwrap(),
+            None => 0,
+        },
+        None => 0,
+    };
+    let size = match req.split("SIZE: ").collect::<Vec<&str>>().get(1) {
+        Some(x) => match x.to_string().split("\n").collect::<Vec<&str>>().get(0) {
+            Some(y) => y.to_string().parse::<usize>().unwrap(),
+            None => 0,
+        },
+        None => 0,
+    };
+
+    let sizeofheader = build_data_packet_header(offset, size).len();
+    (offset, message[sizeofheader..sizeofheader + size].to_vec())
 }
 
 //abstractions implemented to later make easier to modify if needed
