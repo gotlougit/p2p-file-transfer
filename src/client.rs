@@ -5,7 +5,7 @@ use std::io::Write;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
-use tokio::task;
+//use tokio::task;
 
 use crate::protocol;
 
@@ -70,7 +70,7 @@ impl Client {
         if input == "Y\n" || input == "\n" {
             return true;
         }
-        return false;
+        false
     }
 
     //pass message received here to determine what to do; action will be taken asynchronously
@@ -97,7 +97,7 @@ impl Client {
             protocol::ClientState::NoState => {
                 //new connection
                 self.init_connection().await;
-                return true;
+                true
             }
             protocol::ClientState::ACKorNACK => {
                 //ask user whether they want the file or not
@@ -109,7 +109,7 @@ impl Client {
                     protocol::send(&self.socket, &protocol::ACK.to_vec()).await;
                     println!("Sent ACK");
                     self.state = protocol::ClientState::SendFile;
-                    return true;
+                    true
                 } else {
                     println!("Stopping transfer");
                     protocol::send(&self.socket, &protocol::NACK.to_vec()).await;
@@ -118,7 +118,7 @@ impl Client {
                     //delete open file
                     remove_file(&self.file_save_as).expect("Couldn't remove file!");
                     self.end_connection();
-                    return false;
+                    false
                 }
             }
             protocol::ClientState::SendFile => {
@@ -129,7 +129,7 @@ impl Client {
                 });
                 */
                 self.save_data_to_file(message, size).await;
-                return true;
+                true
             }
             protocol::ClientState::EndConn => {
                 println!("Client has received file completely...");
@@ -141,7 +141,7 @@ impl Client {
     fn end_connection(&mut self) -> bool {
         //the end
         println!("Ending Client object...");
-        return false;
+        false
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {

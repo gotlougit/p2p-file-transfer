@@ -1,6 +1,7 @@
 //define both messages that client and server exchange and the interfaces they will use to do so
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
+use stunclient::StunClient;
 use tokio::net::UdpSocket;
 
 pub enum ClientState {
@@ -21,7 +22,7 @@ pub fn parse_ack(message: [u8; MTU], amt: usize) -> bool {
     if amt == 3 && message[..3] == ACK {
         return true;
     }
-    return false;
+    false
 }
 
 pub const NACK: [u8; 4] = *b"NACK";
@@ -30,7 +31,7 @@ pub fn parse_nack(message: [u8; MTU], amt: usize) -> bool {
     if amt == 4 && message[..4] == NACK {
         return true;
     }
-    return false;
+    false
 }
 
 pub const END: [u8; 3] = *b"END";
@@ -39,7 +40,28 @@ pub fn parse_end(message: [u8; MTU], amt: usize) -> bool {
     if amt == 3 && message[..3] == END {
         return true;
     }
-    return false;
+    false
+}
+
+pub async fn get_external(socket: &UdpSocket) -> SocketAddr {
+    let stun_addr = "5.178.34.84:3478"
+        .to_socket_addrs()
+        .unwrap()
+        .filter(|x| x.is_ipv4())
+        .next()
+        .unwrap();
+    let c = StunClient::new(stun_addr);
+    let f = c.query_external_address_async(socket).await;
+    match f {
+        Ok(x) => {
+            println!("Program is externally at: {}", x);
+            x
+        }
+        Err(_) => {
+            println!("Error at protocol.rs: STUN");
+            socket.local_addr().unwrap()
+        }
+    }
 }
 
 fn parse_generic_req(message: [u8; MTU], amt: usize) -> String {
@@ -48,7 +70,7 @@ fn parse_generic_req(message: [u8; MTU], amt: usize) -> String {
         Err(_) => {
             println!("Parse error detected, returning empty string...");
             String::from("")
-        },
+        }
     };
     req
 }
@@ -61,8 +83,9 @@ pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
 
 pub fn parse_send_req(message: [u8; MTU], amt: usize) -> (String, String) {
     let req = parse_generic_req(message, amt);
-    
-    if req.len() == 0 { //invalid request
+
+    if req.is_empty() {
+        //invalid request
         return (String::from(""), String::from(""));
     }
 
@@ -72,7 +95,7 @@ pub fn parse_send_req(message: [u8; MTU], amt: usize) -> (String, String) {
     };
 
     let giventoken = match req.split("AUTH ").collect::<Vec<&str>>().get(1) {
-        Some(x) => match x.to_string().split("\n").collect::<Vec<&str>>().get(0) {
+        Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
             Some(y) => y.to_string(),
             None => String::from(""),
         },
@@ -90,7 +113,7 @@ pub fn filesize_packet(filesize: usize) -> Vec<u8> {
 
 pub fn parse_filesize_packet(message: [u8; MTU], amt: usize) -> usize {
     let req = parse_generic_req(message, amt);
-    if req.len() == 0 {
+    if req.is_empty() {
         return 0;
     }
     let size = match req.split("SIZE ").collect::<Vec<&str>>().get(1) {
@@ -111,7 +134,7 @@ pub fn parse_last_received(message: [u8; MTU], amt: usize) -> usize {
         return 0;
     }
     let req = parse_generic_req(message, amt);
-    if req.len() == 0 {
+    if req.is_empty() {
         return 0;
     }
     let lastrecv = match req.split("LAST ").collect::<Vec<&str>>().get(1) {
@@ -123,13 +146,12 @@ pub fn parse_last_received(message: [u8; MTU], amt: usize) -> usize {
 
 //builds data packet encapsulated with required info about where packet actually goes
 fn build_data_packet_header(offset: usize, size: usize) -> String {
-    let s = String::from("OFFSET: ")
+    String::from("OFFSET: ")
         + &offset.to_string()
         + "\n"
         + &String::from("SIZE: ")
         + &size.to_string()
-        + "\n";
-    s
+        + "\n"
 }
 
 pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
@@ -141,19 +163,19 @@ pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
 
 pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
     let req = parse_generic_req(message, amt);
-    if req.len() == 0 {
-        let emptyvector : Vec<u8> = Vec::new();
+    if req.is_empty() {
+        let emptyvector: Vec<u8> = Vec::new();
         return (0, emptyvector);
     }
     let offset = match req.split("OFFSET: ").collect::<Vec<&str>>().get(1) {
-        Some(x) => match x.to_string().split("\n").collect::<Vec<&str>>().get(0) {
+        Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
             Some(y) => y.to_string().parse::<usize>().unwrap(),
             None => 0,
         },
         None => 0,
     };
     let size = match req.split("SIZE: ").collect::<Vec<&str>>().get(1) {
-        Some(x) => match x.to_string().split("\n").collect::<Vec<&str>>().get(0) {
+        Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
             Some(y) => y.to_string().parse::<usize>().unwrap(),
             None => 0,
         },

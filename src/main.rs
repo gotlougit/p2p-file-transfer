@@ -41,8 +41,11 @@ async fn serve(filename: &String, authtoken: &String) {
             .expect("Couldn't bind to specified port!"),
     );
 
+    //STUN stuff for testing
+    let _ = protocol::get_external(&socket).await;
+
     //print to screen what port we're using here
-    println!("I am serving at {}", socket.local_addr().unwrap());
+    println!("I am serving locally at {}", socket.local_addr().unwrap());
 
     //construct Server object
     let server_obj = server::init(
@@ -74,6 +77,10 @@ async fn client(
     let interface = "0.0.0.0:0";
     //open socket and start networking!
     let socket = Arc::new(UdpSocket::bind(interface).await.expect("Couldn't connect!"));
+
+    //STUN stuff for testing
+    let _ = protocol::get_external(&socket).await;
+
     socket
         .connect(server_interface)
         .await
