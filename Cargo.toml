@@ -8,3 +8,4 @@ author = ["gotlou"]
 
 [dependencies]
 tokio = { version = "1.21.2", features = ["full"] }
+stunclient = "0.3.1"
