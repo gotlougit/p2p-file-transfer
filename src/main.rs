@@ -27,8 +27,8 @@ fn get_file_to_serve(filename: &String, filesize: u64) -> Arc<Vec<u8>> {
 }
 
 async fn serve(filename: &String, authtoken: &String) {
-    //test values, will be dynamic later on
-    let interface = "0.0.0.0:8888";
+    //get random port from OS to serve on
+    let interface = "0.0.0.0:0";
 
     //file handling; just reads the file into vector
     let datasize = get_file_size(filename);
@@ -42,7 +42,7 @@ async fn serve(filename: &String, authtoken: &String) {
     );
 
     //print to screen what port we're using here
-    println!("I am serving at {}", interface);
+    println!("I am serving at {}", socket.local_addr().unwrap());
 
     //construct Server object
     let server_obj = server::init(
@@ -70,14 +70,17 @@ async fn client(
     file_to_get: &String,
     filename: &String,
     authtoken: &String,
-    interface: &String,
 ) {
+    let interface = "0.0.0.0:0";
     //open socket and start networking!
     let socket = Arc::new(UdpSocket::bind(interface).await.expect("Couldn't connect!"));
     socket
         .connect(server_interface)
         .await
         .expect("Couldn't connect to server, is it running?");
+
+    //print to screen what port we're using here
+    println!("I am receiving at {}", socket.local_addr().unwrap());
 
     //create Client object and send initial request to server
     let client_obj = client::init(Arc::clone(&socket), file_to_get, filename, authtoken);
@@ -104,7 +107,7 @@ async fn client(
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Insufficient args entered! Usage: ./program client <server_interface> <file_to_get> <filename> <client_interface_to_use> or ./program server <file_to_serve>");
+        eprintln!("Insufficient args entered! Usage: ./program client <server_interface> <file_to_get> <filename> or ./program server <file_to_serve>");
     }
 
     let mode = &args[1];
@@ -118,8 +121,7 @@ async fn main() {
         let server_interface = &args[2];
         let file_to_get = &args[3];
         let filename = &args[4];
-        let interface = &args[5];
-        client(server_interface, file_to_get, filename, &auth, interface).await;
+        client(server_interface, file_to_get, filename, &auth).await;
     } else {
         eprintln!("Incorrect args entered!");
     }
