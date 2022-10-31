@@ -1,8 +1,10 @@
 use std::env;
 use std::fs::File;
+use std::io;
 use std::io::Read;
 use std::str;
 use std::sync::Arc;
+use std::{thread, time};
 use tokio::net::UdpSocket;
 
 mod auth;
@@ -41,10 +43,26 @@ async fn serve(filename: &String, authtoken: &String) {
             .expect("Couldn't bind to specified port!"),
     );
 
-    //STUN stuff for testing
-    let _ = protocol::get_external(&socket).await;
+    //NAT traversal
 
-    //print to screen what port we're using here
+    //get our external IP and port
+    let _ = protocol::get_external(Arc::clone(&socket)).await;
+
+    //get client's external IP and port
+    //TODO: add control plane which will automate this to support multiple clients
+    println!("Enter client IP info: ");
+    let stdin = io::stdin();
+    let mut client_interface = String::new();
+    stdin
+        .read_line(&mut client_interface)
+        .expect("Couldn't read from stdin");
+
+    //wait 5 seconds, try connecting to server, then wait 5 more seconds
+    thread::sleep(time::Duration::from_secs(5));
+    protocol::init_nat_traversal(Arc::clone(&socket), &client_interface).await;
+    thread::sleep(time::Duration::from_secs(5));
+
+    //print to screen what port we're using here just in case
     println!("I am serving locally at {}", socket.local_addr().unwrap());
 
     //construct Server object
@@ -68,25 +86,39 @@ async fn serve(filename: &String, authtoken: &String) {
     }
 }
 
-async fn client(
-    server_interface: &String,
-    file_to_get: &String,
-    filename: &String,
-    authtoken: &String,
-) {
+async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     let interface = "0.0.0.0:0";
     //open socket and start networking!
     let socket = Arc::new(UdpSocket::bind(interface).await.expect("Couldn't connect!"));
 
-    //STUN stuff for testing
-    let _ = protocol::get_external(&socket).await;
+    //NAT traversal
 
+    //get our external IP and port
+    let _ = protocol::get_external(Arc::clone(&socket)).await;
+
+    //get server's external IP and port
+    println!("Enter server IP info: ");
+    let stdin = io::stdin();
+    let mut server_interface = String::new();
+    stdin
+        .read_line(&mut server_interface)
+        .expect("Couldn't read from stdin");
+
+    //wait 5 seconds, try connecting to server, then wait 5 more seconds
+    thread::sleep(time::Duration::from_secs(5));
+    protocol::init_nat_traversal(Arc::clone(&socket), &server_interface).await;
+    thread::sleep(time::Duration::from_secs(5));
+
+    //connect to *hopefully* open server port
+    
+    //get rid of \n from input
+    let server_int = server_interface[..server_interface.len() - 1].to_string();
     socket
-        .connect(server_interface)
+        .connect(server_int)
         .await
         .expect("Couldn't connect to server, is it running?");
 
-    //print to screen what port we're using here
+    //print to screen what local port we're using here just in case
     println!("I am receiving at {}", socket.local_addr().unwrap());
 
     //create Client object and send initial request to server
@@ -114,7 +146,7 @@ async fn client(
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Insufficient args entered! Usage: ./program client <server_interface> <file_to_get> <filename> or ./program server <file_to_serve>");
+        eprintln!("Insufficient args entered! Usage: ./program client <file_to_get> <filename> or ./program server <file_to_serve>");
     }
 
     let mode = &args[1];
@@ -125,10 +157,9 @@ async fn main() {
         let filename = &args[2];
         serve(filename, &auth).await;
     } else if mode == "client" {
-        let server_interface = &args[2];
-        let file_to_get = &args[3];
-        let filename = &args[4];
-        client(server_interface, file_to_get, filename, &auth).await;
+        let file_to_get = &args[2];
+        let filename = &args[3];
+        client(file_to_get, filename, &auth).await;
     } else {
         eprintln!("Incorrect args entered!");
     }

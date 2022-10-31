@@ -1,8 +1,11 @@
 //define both messages that client and server exchange and the interfaces they will use to do so
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
+use std::sync::Arc;
+use std::time::Duration;
 use stunclient::StunClient;
 use tokio::net::UdpSocket;
+use tokio::time::timeout;
 
 pub enum ClientState {
     NoState,
@@ -11,6 +14,80 @@ pub enum ClientState {
     EndConn,
 }
 
+pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
+    let om = &other_machine.to_string()[..other_machine.len() - 1]
+        .to_string()
+        .to_socket_addrs()
+        .unwrap()
+        .filter(|x| x.is_ipv4())
+        .next()
+        .unwrap();
+
+    let x = 5; //number of test packets to send
+    let y = 2; //number of seconds to wait for receiving packet from other party per attempt
+
+    let mut connected = false;
+
+    while !connected {
+        for _ in 0..x {
+            println!("Sending useless message to get firewall to open up...");
+            send_to(&socket, &om, &ACK.to_vec()).await;
+            println!("Sent useless message to get firewall to open up...");
+            let mut buf = [0u8; MTU];
+            let f = recv(&socket, &mut buf);
+            match timeout(Duration::from_secs(y), f).await {
+                Ok(_) => {
+                    println!("Seemed to get some data from somewhere, perhaps it is other machine");
+                    connected = true;
+                    println!(
+                        "Will send more requests in case other machine's ports are not open yet..."
+                    );
+                }
+                Err(_) => {
+                    println!("Did not receive any data, retrying...");
+                }
+            }
+        }
+    }
+
+    if connected {
+        println!("Seems we are connected to other machine...");
+    } else {
+        eprintln!("Direct connection was NOT able to be established!");
+    }
+}
+
+async fn _get_external(socket: &UdpSocket, ip: String) -> SocketAddr {
+    println!("Internal IP:port is {}", socket.local_addr().unwrap());
+    let stun_addr = ip
+        .to_socket_addrs()
+        .unwrap()
+        .filter(|x| x.is_ipv4())
+        .next()
+        .unwrap();
+    let c = StunClient::new(stun_addr);
+    let f = c.query_external_address_async(&socket).await;
+    match f {
+        Ok(x) => {
+            println!("Program is externally at: {}", x);
+            x
+        }
+        Err(_) => {
+            println!("Error at protocol.rs: STUN");
+            socket.local_addr().unwrap()
+        }
+    }
+}
+
+pub async fn get_external(socket: Arc<UdpSocket>) {
+    let ip1 = _get_external(&socket, "5.178.34.84:3478".to_string()).await;
+    let ip2 = _get_external(&socket, "stun2.l.google.com:19302".to_string()).await;
+    if ip1 == ip2 {
+        println!("NAT is easy");
+    } else {
+        eprintln!("NAT is hard! Cannot transfer files over hard NAT!");
+    }
+}
 //some constants defined for convenience
 
 pub const MTU: usize = 1280;
@@ -41,27 +118,6 @@ pub fn parse_end(message: [u8; MTU], amt: usize) -> bool {
         return true;
     }
     false
-}
-
-pub async fn get_external(socket: &UdpSocket) -> SocketAddr {
-    let stun_addr = "5.178.34.84:3478"
-        .to_socket_addrs()
-        .unwrap()
-        .filter(|x| x.is_ipv4())
-        .next()
-        .unwrap();
-    let c = StunClient::new(stun_addr);
-    let f = c.query_external_address_async(socket).await;
-    match f {
-        Ok(x) => {
-            println!("Program is externally at: {}", x);
-            x
-        }
-        Err(_) => {
-            println!("Error at protocol.rs: STUN");
-            socket.local_addr().unwrap()
-        }
-    }
 }
 
 fn parse_generic_req(message: [u8; MTU], amt: usize) -> String {
