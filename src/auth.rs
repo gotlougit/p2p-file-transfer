@@ -1,6 +1,4 @@
 //module to help implement authentication
-use std::str;
-
 use crate::protocol;
 
 pub struct AuthChecker {

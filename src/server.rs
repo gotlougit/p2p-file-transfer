@@ -1,7 +1,6 @@
 //implements server object which is capable of handling multiple clients at once
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::str;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
