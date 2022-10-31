@@ -2,7 +2,6 @@
 use std::fs::{remove_file, File};
 use std::io;
 use std::io::Write;
-use std::str;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
