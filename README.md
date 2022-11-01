@@ -15,3 +15,5 @@ It is being coded in Rust in order to get both safety and performance
 ## Status
 
 Alpha: I am basically learning network programming through this. This is in NO way usable right now.
+
+Right now, it is able to make direct connections through easy NAT and transfer one file from one machine (called a server) to another machine (called a client).
