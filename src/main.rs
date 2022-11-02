@@ -77,7 +77,6 @@ async fn serve(filename: &String, authtoken: &String) {
     loop {
         let mut buf = [0u8; protocol::MTU];
         let (amt, src) = protocol::recv(&socket, &mut buf).await;
-        println!("Server got data: {}", str::from_utf8(&buf).expect("oof"));
         server_obj
             .lock()
             .await
@@ -128,7 +127,6 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     loop {
         let mut buf = [0u8; protocol::MTU];
         let (amt, _) = protocol::recv(&socket, &mut buf).await;
-        println!("Client got data: {}", str::from_utf8(&buf).expect("oof"));
         //make sure program exits gracefully
         let continue_with_loop = client_obj
             .lock()
