@@ -143,7 +143,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Insufficient args entered! Usage: ./program client <file_to_get> <filename> or ./program server <file_to_serve>");
+        eprintln!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve>");
     }
 
     let mode = &args[1];
@@ -155,8 +155,7 @@ async fn main() {
         serve(filename, &auth).await;
     } else if mode == "client" {
         let file_to_get = &args[2];
-        let filename = &args[3];
-        client(file_to_get, filename, &auth).await;
+        client(file_to_get, file_to_get, &auth).await;
     } else {
         eprintln!("Incorrect args entered!");
     }
