@@ -152,11 +152,13 @@ impl Server {
             self.change_src_state(src, ClientState::SendFile);
             //for now we can do this directly
             self.send_data_in_chunks(src, message, amt).await;
-        } else {
+        } else if protocol::parse_nack(message, amt) {
             println!("Client sent NACK");
             self.change_src_state(src, ClientState::EndConn);
             //directly do this since connection needs to be closed anyway
             self.end_connection(src).await;
+        } else {
+            println!("Client snet unknown message type for it's stage! Ignoring");
         }
     }
 
