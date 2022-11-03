@@ -108,7 +108,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     thread::sleep(time::Duration::from_secs(5));
 
     //connect to *hopefully* open server port
-    
+
     //get rid of \n from input
     let server_int = server_interface[..server_interface.len() - 1].to_string();
     socket
