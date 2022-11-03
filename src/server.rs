@@ -8,13 +8,7 @@ use tokio::task;
 
 use crate::auth;
 use crate::protocol;
-
-enum ClientState {
-    NoState,
-    ACKorNACK,
-    SendFile,
-    EndConn,
-}
+use crate::protocol::ClientState;
 
 pub struct Server {
     socket: Arc<UdpSocket>,
