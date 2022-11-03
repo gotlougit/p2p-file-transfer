@@ -14,6 +14,8 @@ pub enum ClientState {
     EndConn,
 }
 
+const MAX_WAIT_TIME : u64 = 2;
+
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
     let om = &other_machine.to_string()[..other_machine.len() - 1]
         .to_string()
@@ -24,7 +26,6 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
         .unwrap();
 
     let x = 5; //number of test packets to send
-    let y = 2; //number of seconds to wait for receiving packet from other party per attempt
 
     let mut connected = false;
 
@@ -35,7 +36,7 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
             println!("Sent useless message to get firewall to open up...");
             let mut buf = [0u8; MTU];
             let f = recv(&socket, &mut buf);
-            match timeout(Duration::from_secs(y), f).await {
+            match timeout(Duration::from_secs(MAX_WAIT_TIME), f).await {
                 Ok(_) => {
                     println!("Seemed to get some data from somewhere, perhaps it is other machine");
                     connected = true;
@@ -57,7 +58,7 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
     }
 }
 
-async fn _get_external(socket: &UdpSocket, ip: String) -> SocketAddr {
+async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
     println!("Internal IP:port is {}", socket.local_addr().unwrap());
     let stun_addr = ip
         .to_socket_addrs()
@@ -79,11 +80,11 @@ async fn _get_external(socket: &UdpSocket, ip: String) -> SocketAddr {
     }
 }
 
-pub async fn get_external(socket: Arc<UdpSocket>) {
-    let ip1 = _get_external(&socket, "5.178.34.84:3478".to_string()).await;
-    let ip2 = _get_external(&socket, "stun2.l.google.com:19302".to_string()).await;
+pub async fn get_external_and_nat(socket: Arc<UdpSocket>) {
+    let ip1 = get_external_info(&socket, "5.178.34.84:3478".to_string()).await;
+    let ip2 = get_external_info(&socket, "stun2.l.google.com:19302".to_string()).await;
     if ip1 == ip2 {
-        println!("NAT is easy");
+        println!("NAT is easy, can transfer files easily");
     } else {
         eprintln!("NAT is hard! Cannot transfer files over hard NAT!");
     }

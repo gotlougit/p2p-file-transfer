@@ -45,7 +45,7 @@ async fn serve(filename: &String, authtoken: &String) {
     //NAT traversal
 
     //get our external IP and port
-    let _ = protocol::get_external(Arc::clone(&socket)).await;
+    protocol::get_external_and_nat(Arc::clone(&socket)).await;
 
     //get client's external IP and port
     //TODO: add control plane which will automate this to support multiple clients
@@ -92,7 +92,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     //NAT traversal
 
     //get our external IP and port
-    let _ = protocol::get_external(Arc::clone(&socket)).await;
+    protocol::get_external_and_nat(Arc::clone(&socket)).await;
 
     //get server's external IP and port
     println!("Enter server IP info: ");
