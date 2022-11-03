@@ -3,6 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
 use std::sync::Arc;
 use std::time::Duration;
+use std::thread;
 use stunclient::StunClient;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
@@ -17,6 +18,7 @@ pub enum ClientState {
 const MAX_WAIT_TIME : u64 = 2;
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
+    thread::sleep(Duration::from_secs(5));
     let om = &other_machine.to_string()[..other_machine.len() - 1]
         .to_string()
         .to_socket_addrs()
@@ -56,6 +58,7 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
     } else {
         eprintln!("Direct connection was NOT able to be established!");
     }
+    thread::sleep(Duration::from_secs(5));
 }
 
 async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {

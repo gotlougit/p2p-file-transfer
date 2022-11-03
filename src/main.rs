@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io;
 use std::io::Read;
 use std::sync::Arc;
-use std::{thread, time};
 use tokio::net::UdpSocket;
 
 mod auth;
@@ -57,9 +56,7 @@ async fn serve(filename: &String, authtoken: &String) {
         .expect("Couldn't read from stdin");
 
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
-    thread::sleep(time::Duration::from_secs(5));
     protocol::init_nat_traversal(Arc::clone(&socket), &client_interface).await;
-    thread::sleep(time::Duration::from_secs(5));
 
     //print to screen what port we're using here just in case
     println!("I am serving locally at {}", socket.local_addr().unwrap());
@@ -103,9 +100,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
         .expect("Couldn't read from stdin");
 
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
-    thread::sleep(time::Duration::from_secs(5));
     protocol::init_nat_traversal(Arc::clone(&socket), &server_interface).await;
-    thread::sleep(time::Duration::from_secs(5));
 
     //connect to *hopefully* open server port
 
