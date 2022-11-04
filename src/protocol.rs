@@ -15,7 +15,7 @@ pub enum ClientState {
     EndConn,
 }
 
-const MAX_WAIT_TIME : u64 = 2;
+pub const MAX_WAIT_TIME : Duration = Duration::from_secs(10);
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
     thread::sleep(Duration::from_secs(5));
@@ -38,7 +38,7 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
             println!("Sent useless message to get firewall to open up...");
             let mut buf = [0u8; MTU];
             let f = recv(&socket, &mut buf);
-            match timeout(Duration::from_secs(MAX_WAIT_TIME), f).await {
+            match timeout(MAX_WAIT_TIME, f).await {
                 Ok(_) => {
                     println!("Seemed to get some data from somewhere, perhaps it is other machine");
                     connected = true;
@@ -119,6 +119,24 @@ pub const END: [u8; 3] = *b"END";
 
 pub fn parse_end(message: [u8; MTU], amt: usize) -> bool {
     if amt == 3 && message[..3] == END {
+        return true;
+    }
+    false
+}
+
+pub const MACK : [u8; 4] = *b"MACK";
+
+pub fn parse_mack(message: [u8; MTU], amt: usize) -> bool {
+    if amt == 4 && message[..4] == MACK {
+        return true;
+    }
+    false
+}
+
+pub const RESEND : [u8; 6] = *b"RESEND";
+
+pub fn parse_resend(message: [u8; MTU], amt: usize) -> bool {
+    if amt == 6 && message[..6] == RESEND {
         return true;
     }
     false

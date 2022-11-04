@@ -18,6 +18,7 @@ pub struct Client {
     lastpacket: usize,
     filesize: usize,
     state: protocol::ClientState,
+    lastmsg: Vec<u8>,
 }
 
 pub fn init(
@@ -29,7 +30,7 @@ pub fn init(
     let fd = Arc::new(Mutex::new(
         File::create(&filename).expect("Couldn't create file!"),
     ));
-
+    let emptyvec = Vec::<u8>::new();
     let client_obj = Client {
         socket,
         file: fd,
@@ -39,6 +40,7 @@ pub fn init(
         lastpacket: 0,
         filesize: 0,
         state: protocol::ClientState::NoState,
+        lastmsg: emptyvec,
     };
     Arc::new(Mutex::new(client_obj))
 }
@@ -51,6 +53,7 @@ impl Client {
     pub async fn init_connection(&mut self) {
         println!("Client has new connection to make!");
         let filereq = protocol::send_req(&self.filename, &self.authtoken);
+        self.lastmsg = filereq.to_vec();
         protocol::send(&self.socket, &filereq).await;
         self.state = protocol::ClientState::ACKorNACK;
     }
@@ -71,6 +74,10 @@ impl Client {
             return true;
         }
         false
+    }
+
+    pub async fn resend_msg(&self) {
+        protocol::send(&self.socket, &self.lastmsg).await;
     }
 
     //pass message received here to determine what to do; action will be taken asynchronously
@@ -107,11 +114,13 @@ impl Client {
                 if decision {
                     println!("Sending ACK");
                     protocol::send(&self.socket, &protocol::ACK.to_vec()).await;
+                    self.lastmsg = protocol::ACK.to_vec();
                     println!("Sent ACK");
                     self.state = protocol::ClientState::SendFile;
                     true
                 } else {
                     println!("Stopping transfer");
+                    self.lastmsg = protocol::NACK.to_vec();
                     protocol::send(&self.socket, &protocol::NACK.to_vec()).await;
                     println!("Sent NACK");
                     self.state = protocol::ClientState::EndConn;
@@ -162,6 +171,7 @@ impl Client {
                 self.lastpacket
             );
             self.lastpacket += protocol::MTU;
+            self.lastmsg = protocol::last_received_packet(self.lastpacket).to_vec();
             protocol::send(
                 &self.socket,
                 &protocol::last_received_packet(self.lastpacket),

@@ -17,6 +17,7 @@ pub struct Server {
     dummy_size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, ClientState>,
     authchecker: auth::AuthChecker,
+    lastmsgs: HashMap<SocketAddr, Vec<u8>>,
 }
 
 pub fn init(
@@ -25,6 +26,7 @@ pub fn init(
     filename: String,
     authtoken: String,
 ) -> Arc<Mutex<Server>> {
+    let emptyvec = Vec::<u8>::new();
     let filesize = data.len();
     let server_obj = Server {
         socket,
@@ -33,6 +35,7 @@ pub fn init(
         dummy_size_msg: protocol::filesize_packet(0),
         src_state_map: HashMap::new(),
         authchecker: auth::init(authtoken, filename),
+        lastmsgs: HashMap::new(),
     };
     Arc::new(Mutex::new(server_obj))
 }
@@ -100,9 +103,22 @@ impl Server {
         }
     }
 
+    pub async fn resend_msg(&mut self, src : &SocketAddr) {
+        println!("Resending data...");
+        if let Some(msg) = self.lastmsgs.get(src) {
+            protocol::send_to(&self.socket, src, msg).await;
+        }
+    }
+
     fn change_src_state(&mut self, src: &SocketAddr, newstate: ClientState) {
         if let Some(_v) = self.src_state_map.remove(src) {
             self.src_state_map.insert(*src, newstate);
+        }
+    }
+
+    fn change_lastmsg(&mut self, src: &SocketAddr, msg : Vec<u8>) {
+        if let Some(_v) = self.lastmsgs.remove(src) {
+            self.lastmsgs.insert(*src, msg);
         }
     }
 
@@ -110,6 +126,7 @@ impl Server {
         println!("Sending END to {}", src);
         protocol::send_to(&self.socket, src, &protocol::END.to_vec()).await;
         self.src_state_map.remove(src);
+        self.lastmsgs.remove(src);
     }
 
     async fn initiate_transfer_server(
@@ -123,6 +140,7 @@ impl Server {
             println!("Client authentication check succeeded...");
             println!("Sending client size of file");
             protocol::send_to(&self.socket, src, &self.size_msg).await;
+            self.change_lastmsg(src, self.size_msg.to_vec());
             println!("Awaiting response from client...");
             self.change_src_state(src, ClientState::ACKorNACK);
         } else {
@@ -130,6 +148,8 @@ impl Server {
             println!("Client was not able to be authenticated!");
             println!("Sending 0 size file...");
             protocol::send_to(&self.socket, src, &self.dummy_size_msg).await;
+            self.change_lastmsg(src, self.dummy_size_msg.to_vec());
+
             //end connection
             self.end_connection(src).await;
         }
@@ -172,6 +192,7 @@ impl Server {
                 &self.data[offset..offset + protocol::MTU].to_vec(),
             )
             .await;
+            self.change_lastmsg(src, self.data[offset..offset + protocol::MTU].to_vec());
         } else {
             //send remaining data and end connection
             protocol::send_to(
@@ -180,6 +201,7 @@ impl Server {
                 &self.data[offset..self.data.len()].to_vec(),
             )
             .await;
+            self.change_lastmsg(src, self.data[offset..self.data.len()].to_vec());
             println!("File sent completely");
             self.end_connection(src).await;
         }
