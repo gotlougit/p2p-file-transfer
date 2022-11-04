@@ -95,6 +95,7 @@ pub async fn get_external_and_nat(socket: Arc<UdpSocket>) {
 //some constants defined for convenience
 
 pub const MTU: usize = 1280;
+pub const RAW_MTU: usize = 1000;
 
 //important messages implemented as constants
 pub const ACK: [u8; 3] = *b"ACK";

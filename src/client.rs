@@ -145,15 +145,14 @@ impl Client {
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
-        if size < protocol::MTU {
-            match self.file.lock().await.write_all(&message[..size]) {
-                Ok(v) => v,
-                Err(e) => eprint!("Encountered an error while writing: {}", e),
-            };
+        if protocol::parse_end(message, size) {
             self.state = protocol::ClientState::EndConn;
             self.end_connection();
-        } else {
-            match self.file.lock().await.write_all(&message) {
+            return;
+        }
+        let (offset, data) = protocol::parse_data_packet(message, size);
+        {
+            match self.file.lock().await.write_all(&data) {
                 Ok(v) => v,
                 Err(e) => eprint!("Encountered an error while writing: {}", e),
             };
@@ -161,12 +160,12 @@ impl Client {
                 "Sending server msg that we have received offset {}",
                 self.lastpacket
             );
-            self.lastpacket += protocol::MTU;
             protocol::send(
                 &self.socket,
                 &protocol::last_received_packet(self.lastpacket),
             )
             .await;
+            self.lastpacket += protocol::RAW_MTU;
         }
     }
 }

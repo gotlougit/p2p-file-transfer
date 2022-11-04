@@ -163,21 +163,23 @@ impl Server {
         amt: usize,
     ) {
         let offset = protocol::parse_last_received(message, amt);
-        if offset + protocol::MTU < self.data.len() {
-            //send MTU size chunk
+        if offset + protocol::RAW_MTU < self.data.len() {
+            //send chunk
             println!("Sending a chunk...");
+            let packet = protocol::data_packet(offset, &self.data[offset..offset+protocol::RAW_MTU].to_vec());
             protocol::send_to(
                 &self.socket,
                 src,
-                &self.data[offset..offset + protocol::MTU].to_vec(),
+                &packet,
             )
             .await;
         } else {
             //send remaining data and end connection
+            let packet = protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
             protocol::send_to(
                 &self.socket,
                 src,
-                &self.data[offset..self.data.len()].to_vec(),
+                &packet,
             )
             .await;
             println!("File sent completely");
