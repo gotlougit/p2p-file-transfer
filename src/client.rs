@@ -1,4 +1,4 @@
-//implements server object which is capable of handling multiple clients at once
+//implements client object which is capable of handling one file from one server
 use std::fs::{remove_file, File};
 use std::io;
 use std::io::Write;
