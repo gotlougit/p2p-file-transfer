@@ -2,8 +2,9 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::Mutex;
 use std::thread;
+use std::time::Duration;
 use stunclient::StunClient;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
@@ -15,7 +16,9 @@ pub enum ClientState {
     EndConn,
 }
 
-const MAX_WAIT_TIME : u64 = 2;
+static LASTMSG: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+
+pub const MAX_WAIT_TIME: Duration = Duration::from_secs(2);
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
     thread::sleep(Duration::from_secs(5));
@@ -38,7 +41,7 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
             println!("Sent useless message to get firewall to open up...");
             let mut buf = [0u8; MTU];
             let f = recv(&socket, &mut buf);
-            match timeout(Duration::from_secs(MAX_WAIT_TIME), f).await {
+            match timeout(MAX_WAIT_TIME, f).await {
                 Ok(_) => {
                     println!("Seemed to get some data from somewhere, perhaps it is other machine");
                     connected = true;
@@ -119,6 +122,15 @@ pub const END: [u8; 3] = *b"END";
 
 pub fn parse_end(message: [u8; MTU], amt: usize) -> bool {
     if amt == 3 && message[..3] == END {
+        return true;
+    }
+    false
+}
+
+pub const RESEND: [u8; 6] = *b"RESEND";
+
+pub fn parse_resend(message: [u8; MTU], amt: usize) -> bool {
+    if amt == 6 && message[..6] == RESEND {
         return true;
     }
     false
@@ -246,12 +258,28 @@ pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
     (offset, message[sizeofheader..sizeofheader + size].to_vec())
 }
 
+pub async fn resend(socket: &UdpSocket) {
+    let msg = LASTMSG.lock().unwrap().to_owned();
+    send(
+        socket,
+        &msg
+    ).await
+}
+
+fn set_last_msg(message: &Vec<u8>) {
+    let mut t = LASTMSG.lock().expect("Could not acquire lock for LASTMSG");
+    if *t != message.to_vec() {
+        *t = message.to_vec();
+    }
+}
+
 //abstractions implemented to later make easier to modify if needed
 pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &Vec<u8>) {
     socket
         .send_to(message, src)
         .await
         .expect("protocol.rs: Send request failed!");
+    set_last_msg(message); 
 }
 
 pub async fn send(socket: &UdpSocket, message: &Vec<u8>) {
@@ -259,6 +287,7 @@ pub async fn send(socket: &UdpSocket, message: &Vec<u8>) {
         .send(message)
         .await
         .expect("protocol.rs: Send request failed!");
+    set_last_msg(message); 
 }
 
 pub async fn recv(socket: &UdpSocket, buffer: &mut [u8; MTU]) -> (usize, SocketAddr) {

@@ -4,6 +4,7 @@ use std::io;
 use std::io::Read;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
+use tokio::time::timeout;
 
 mod auth;
 mod client;
@@ -72,12 +73,22 @@ async fn serve(filename: &String, authtoken: &String) {
     //main loop which listens for connections and serves data depending on stage
     loop {
         let mut buf = [0u8; protocol::MTU];
-        let (amt, src) = protocol::recv(&socket, &mut buf).await;
-        server_obj
-            .lock()
-            .await
-            .process_msg(&src, buf, amt, server_obj.clone())
-            .await;
+        if let Ok((amt, src)) =
+            timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await
+        {
+            if protocol::parse_resend(buf, amt) {
+                println!("Need to resend!");
+                protocol::resend(&socket).await;
+            } else {
+                server_obj
+                    .lock()
+                    .await
+                    .process_msg(&src, buf, amt, server_obj.clone())
+                    .await;
+            }
+        } else {
+            println!("Timeout occurred!");
+        }
     }
 }
 
@@ -117,19 +128,32 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     //create Client object and send initial request to server
     let client_obj = client::init(Arc::clone(&socket), file_to_get, filename, authtoken);
     client_obj.lock().await.init_connection().await;
+    let mut last_recv = true;
     //listen for server responses and deal with them accordingly
     loop {
+        if !last_recv {
+            protocol::resend(&socket).await;
+            println!("Sent resent packet");
+            last_recv = true;
+        }
+        
         let mut buf = [0u8; protocol::MTU];
-        let (amt, _) = protocol::recv(&socket, &mut buf).await;
-        //make sure program exits gracefully
-        let continue_with_loop = client_obj
-            .lock()
-            .await
-            .process_msg(buf, amt, client_obj.clone())
-            .await;
-        if !continue_with_loop {
-            println!("Client exiting...");
-            break;
+        if let Ok((amt, _)) =
+            timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await
+        {
+            //make sure program exits gracefully
+            let continue_with_loop = client_obj
+                .lock()
+                .await
+                .process_msg(buf, amt, client_obj.clone())
+                .await;
+            if !continue_with_loop {
+                println!("Client exiting...");
+                break;
+            }
+        } else {
+            println!("Client could not receive data in time!");
+            last_recv = false;
         }
     }
 }
