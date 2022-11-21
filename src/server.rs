@@ -152,7 +152,7 @@ impl Server {
             //directly do this since connection needs to be closed anyway
             self.end_connection(src).await;
         } else {
-            println!("Client snet unknown message type for it's stage! Ignoring");
+            println!("Client sent unknown message type for it's stage! Ignoring");
         }
     }
 
