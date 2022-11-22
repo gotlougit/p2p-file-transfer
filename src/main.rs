@@ -136,7 +136,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
             println!("Sent resent packet");
             last_recv = true;
         }
-        
+
         let mut buf = [0u8; protocol::MTU];
         if let Ok((amt, _)) =
             timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await

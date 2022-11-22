@@ -260,10 +260,7 @@ pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
 
 pub async fn resend(socket: &UdpSocket) {
     let msg = LASTMSG.lock().unwrap().to_owned();
-    send(
-        socket,
-        &msg
-    ).await
+    send(socket, &msg).await
 }
 
 fn set_last_msg(message: &Vec<u8>) {
@@ -279,7 +276,7 @@ pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &Vec<u8>) {
         .send_to(message, src)
         .await
         .expect("protocol.rs: Send request failed!");
-    set_last_msg(message); 
+    set_last_msg(message);
 }
 
 pub async fn send(socket: &UdpSocket, message: &Vec<u8>) {
@@ -287,7 +284,7 @@ pub async fn send(socket: &UdpSocket, message: &Vec<u8>) {
         .send(message)
         .await
         .expect("protocol.rs: Send request failed!");
-    set_last_msg(message); 
+    set_last_msg(message);
 }
 
 pub async fn recv(socket: &UdpSocket, buffer: &mut [u8; MTU]) -> (usize, SocketAddr) {
