@@ -18,7 +18,7 @@ pub enum ClientState {
 
 static LASTMSG: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
-pub const MAX_WAIT_TIME: Duration = Duration::from_secs(2);
+pub const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
     thread::sleep(Duration::from_secs(5));
