@@ -171,24 +171,12 @@ impl Server {
             let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
             //send DATA_SIZE size chunk
             println!("Sending a chunk...");
-            protocol::send_to(
-                &self.socket,
-                src,
-                &protocol::data_packet(
-                    offset,
-                    &packet
-                ),
-            )
-            .await;
+            protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
         } else {
             //send remaining data and end connection
-            let packet = protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
-            protocol::send_to(
-                &self.socket,
-                src,
-                &packet
-            )
-            .await;
+            let packet =
+                protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
+            protocol::send_to(&self.socket, src, &packet).await;
             println!("File sent completely");
             //await END packet from client
         }
