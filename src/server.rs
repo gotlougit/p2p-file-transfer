@@ -101,7 +101,7 @@ impl Server {
     }
 
     fn change_src_state(&mut self, src: &SocketAddr, newstate: ClientState) {
-        if let Some(_v) = self.src_state_map.remove(src) {
+        if let Some(_) = self.src_state_map.remove(src) {
             self.src_state_map.insert(*src, newstate);
         }
     }
@@ -162,26 +162,35 @@ impl Server {
         message: [u8; protocol::MTU],
         amt: usize,
     ) {
+        if protocol::parse_end(message, amt) {
+            self.end_connection(src).await;
+            return;
+        }
         let offset = protocol::parse_last_received(message, amt);
-        if offset + protocol::MTU < self.data.len() {
-            //send MTU size chunk
+        if offset + protocol::DATA_SIZE < self.data.len() {
+            let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
+            //send DATA_SIZE size chunk
             println!("Sending a chunk...");
             protocol::send_to(
                 &self.socket,
                 src,
-                &self.data[offset..offset + protocol::MTU].to_vec(),
+                &protocol::data_packet(
+                    offset,
+                    &packet
+                ),
             )
             .await;
         } else {
             //send remaining data and end connection
+            let packet = protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
             protocol::send_to(
                 &self.socket,
                 src,
-                &self.data[offset..self.data.len()].to_vec(),
+                &packet
             )
             .await;
             println!("File sent completely");
-            self.end_connection(src).await;
+            //await END packet from client
         }
     }
 }

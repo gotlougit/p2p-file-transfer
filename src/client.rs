@@ -5,19 +5,20 @@ use std::io::Write;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
-//use tokio::task;
+use tokio::task;
 
 use crate::protocol;
 
 pub struct Client {
     socket: Arc<UdpSocket>,
-    file: Arc<Mutex<File>>,
+    file: File,
     filename: String,
     file_save_as: String,
     authtoken: String,
     lastpacket: usize,
     filesize: usize,
     state: protocol::ClientState,
+    file_in_ram: Vec<u8>,
 }
 
 pub fn init(
@@ -26,9 +27,7 @@ pub fn init(
     filename: &String,
     authtoken: &String,
 ) -> Arc<Mutex<Client>> {
-    let fd = Arc::new(Mutex::new(
-        File::create(&filename).expect("Couldn't create file!"),
-    ));
+    let fd = File::create(&filename).expect("Couldn't create file!");
 
     let client_obj = Client {
         socket,
@@ -39,6 +38,7 @@ pub fn init(
         lastpacket: 0,
         filesize: 0,
         state: protocol::ClientState::NoState,
+        file_in_ram: Vec::new(),
     };
     Arc::new(Mutex::new(client_obj))
 }
@@ -105,6 +105,8 @@ impl Client {
                 let decision = self.get_user_decision();
                 //send ACK/NACK
                 if decision {
+                    //fix size of vector
+                    self.file_in_ram.resize(self.filesize, 0);
                     println!("Sending ACK");
                     protocol::send(&self.socket, &protocol::ACK.to_vec()).await;
                     println!("Sent ACK");
@@ -123,13 +125,16 @@ impl Client {
             }
             protocol::ClientState::SendFile => {
                 println!("Client has to receive the file");
-                /*
-                task::spawn(async move {
-                    selfcopy.lock().await.save_data_to_file(message, size).await
-                });
-                */
-                self.save_data_to_file(message, size).await;
-                true
+                if protocol::parse_end(message, size) {
+                    println!("END received...");
+                    self.end_connection();
+                    return false;
+                } else {
+                    task::spawn(async move {
+                        selfcopy.lock().await.save_data_to_file(message, size).await
+                    });
+                    return true;
+                }
             }
             protocol::ClientState::EndConn => {
                 println!("Client has received file completely...");
@@ -139,29 +144,30 @@ impl Client {
     }
 
     fn end_connection(&mut self) -> bool {
+        //write file all at once
+        if let Err(_) = self.file.write_all(&self.file_in_ram) {
+            eprintln!("Error! File write failed!");
+        }
         //the end
         println!("Ending Client object...");
         false
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
-        if size < protocol::MTU {
-            match self.file.lock().await.write_all(&message[..size]) {
-                Ok(v) => v,
-                Err(e) => eprint!("Encountered an error while writing: {}", e),
-            };
-            self.state = protocol::ClientState::EndConn;
-            self.end_connection();
+        let (offset, data) = protocol::parse_data_packet(message, size);
+        //copy data over to file_in_ram
+        for i in 0..data.len() {
+            self.file_in_ram[offset + i] = data[i];
+        }
+        println!(
+            "Sending server msg that we have received offset {}",
+            self.lastpacket
+        );
+        self.lastpacket += data.len();
+        if self.lastpacket == self.filesize {
+            //client received entire file, end connection
+            protocol::send(&self.socket, &protocol::END.to_vec()).await;
         } else {
-            match self.file.lock().await.write_all(&message) {
-                Ok(v) => v,
-                Err(e) => eprint!("Encountered an error while writing: {}", e),
-            };
-            println!(
-                "Sending server msg that we have received offset {}",
-                self.lastpacket
-            );
-            self.lastpacket += protocol::MTU;
             protocol::send(
                 &self.socket,
                 &protocol::last_received_packet(self.lastpacket),

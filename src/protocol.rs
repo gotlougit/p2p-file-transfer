@@ -21,7 +21,7 @@ static LASTMSG: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 pub const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
-    thread::sleep(Duration::from_secs(5));
+    thread::sleep(MAX_WAIT_TIME);
     let om = &other_machine.to_string()[..other_machine.len() - 1]
         .to_string()
         .to_socket_addrs()
@@ -61,7 +61,7 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
     } else {
         eprintln!("Direct connection was NOT able to be established!");
     }
-    thread::sleep(Duration::from_secs(5));
+    thread::sleep(MAX_WAIT_TIME);
 }
 
 async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
@@ -73,7 +73,7 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
         .next()
         .unwrap();
     let c = StunClient::new(stun_addr);
-    let f = c.query_external_address_async(&socket).await;
+    let f = c.query_external_address_async(socket).await;
     match f {
         Ok(x) => {
             println!("Program is externally at: {}", x);
@@ -98,6 +98,7 @@ pub async fn get_external_and_nat(socket: Arc<UdpSocket>) {
 //some constants defined for convenience
 
 pub const MTU: usize = 1280;
+pub const DATA_SIZE: usize = 1000;
 
 //important messages implemented as constants
 pub const ACK: [u8; 3] = *b"ACK";
@@ -217,24 +218,27 @@ pub fn parse_last_received(message: [u8; MTU], amt: usize) -> usize {
 }
 
 //builds data packet encapsulated with required info about where packet actually goes
-fn build_data_packet_header(offset: usize, size: usize) -> String {
-    String::from("OFFSET: ")
-        + &offset.to_string()
-        + "\n"
-        + &String::from("SIZE: ")
-        + &size.to_string()
-        + "\n"
+fn build_data_packet_header(offset: usize) -> String {
+    String::from("OFFSET: ") + &offset.to_string() + "\n"
 }
 
 pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
-    let s = build_data_packet_header(offset, message.len());
+    let s = build_data_packet_header(offset);
     let mut b1 = s.as_bytes().to_vec();
     b1.extend(message);
     b1
 }
 
+//get the required data from the data packet
 pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
-    let req = parse_generic_req(message, amt);
+    let mut sizeofheader = 0;
+    for i in 0..amt {
+        if message[i] == 10 {
+            sizeofheader = i + 1;
+            break;
+        }
+    }
+    let req = parse_generic_req(message, sizeofheader);
     if req.is_empty() {
         let emptyvector: Vec<u8> = Vec::new();
         return (0, emptyvector);
@@ -246,18 +250,10 @@ pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
         },
         None => 0,
     };
-    let size = match req.split("SIZE: ").collect::<Vec<&str>>().get(1) {
-        Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
-            Some(y) => y.to_string().parse::<usize>().unwrap(),
-            None => 0,
-        },
-        None => 0,
-    };
-
-    let sizeofheader = build_data_packet_header(offset, size).len();
-    (offset, message[sizeofheader..sizeofheader + size].to_vec())
+    (offset, message[sizeofheader..amt].to_vec())
 }
 
+//deal with retransmission of last packet that apparently was never received
 pub async fn resend(socket: &UdpSocket) {
     let msg = LASTMSG.lock().unwrap().to_owned();
     send(socket, &msg).await
