@@ -12,7 +12,7 @@ Why not just put the huge amount of resources residential Internet users get to 
 
 It is being coded in Rust in order to get both safety and performance, using the Tokio asynchronous framework in order to get faster performance. 
 
-As of right now, the server supports async requests only.
+Both the client and server have async network request support.
 
 ## Implemented Features
 
