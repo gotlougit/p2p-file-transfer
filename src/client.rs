@@ -156,9 +156,7 @@ impl Client {
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
         let (offset, data) = protocol::parse_data_packet(message, size);
         //copy data over to file_in_ram
-        for i in 0..data.len() {
-            self.file_in_ram[offset + i] = data[i];
-        }
+        self.file_in_ram[offset..offset + data.len()].copy_from_slice(&data[..]);
         println!(
             "Sending server msg that we have received offset {}",
             self.lastpacket
