@@ -101,14 +101,14 @@ impl Server {
     }
 
     fn change_src_state(&mut self, src: &SocketAddr, newstate: ClientState) {
-        if let Some(_) = self.src_state_map.remove(src) {
+        if self.src_state_map.remove(src).is_some() {
             self.src_state_map.insert(*src, newstate);
         }
     }
 
     async fn end_connection(&mut self, src: &SocketAddr) {
         println!("Sending END to {}", src);
-        protocol::send_to(&self.socket, src, &protocol::END.to_vec()).await;
+        protocol::send_to(&self.socket, src, protocol::END.as_ref()).await;
         self.src_state_map.remove(src);
     }
 

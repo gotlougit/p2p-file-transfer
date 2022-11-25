@@ -37,7 +37,7 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
     while !connected {
         for _ in 0..x {
             println!("Sending useless message to get firewall to open up...");
-            send_to(&socket, &om, &ACK.to_vec()).await;
+            send_to(&socket, om, ACK.as_ref()).await;
             println!("Sent useless message to get firewall to open up...");
             let mut buf = [0u8; MTU];
             let f = recv(&socket, &mut buf);
@@ -259,7 +259,7 @@ pub async fn resend(socket: &UdpSocket) {
     send(socket, &msg).await
 }
 
-fn set_last_msg(message: &Vec<u8>) {
+fn set_last_msg(message: &[u8]) {
     let mut t = LASTMSG.lock().expect("Could not acquire lock for LASTMSG");
     if *t != message.to_vec() {
         *t = message.to_vec();
@@ -267,7 +267,7 @@ fn set_last_msg(message: &Vec<u8>) {
 }
 
 //abstractions implemented to later make easier to modify if needed
-pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &Vec<u8>) {
+pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &[u8]) {
     socket
         .send_to(message, src)
         .await
@@ -275,7 +275,7 @@ pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &Vec<u8>) {
     set_last_msg(message);
 }
 
-pub async fn send(socket: &UdpSocket, message: &Vec<u8>) {
+pub async fn send(socket: &UdpSocket, message: &[u8]) {
     socket
         .send(message)
         .await

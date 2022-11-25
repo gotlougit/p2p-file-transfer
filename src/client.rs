@@ -27,7 +27,7 @@ pub fn init(
     filename: &String,
     authtoken: &String,
 ) -> Arc<Mutex<Client>> {
-    let fd = File::create(&filename).expect("Couldn't create file!");
+    let fd = File::create(filename).expect("Couldn't create file!");
 
     let client_obj = Client {
         socket,
@@ -108,13 +108,13 @@ impl Client {
                     //fix size of vector
                     self.file_in_ram.resize(self.filesize, 0);
                     println!("Sending ACK");
-                    protocol::send(&self.socket, &protocol::ACK.to_vec()).await;
+                    protocol::send(&self.socket, protocol::ACK.as_ref()).await;
                     println!("Sent ACK");
                     self.state = protocol::ClientState::SendFile;
                     true
                 } else {
                     println!("Stopping transfer");
-                    protocol::send(&self.socket, &protocol::NACK.to_vec()).await;
+                    protocol::send(&self.socket, protocol::NACK.as_ref()).await;
                     println!("Sent NACK");
                     self.state = protocol::ClientState::EndConn;
                     //delete open file
@@ -128,12 +128,12 @@ impl Client {
                 if protocol::parse_end(message, size) {
                     println!("END received...");
                     self.end_connection();
-                    return false;
+                    false
                 } else {
                     task::spawn(async move {
                         selfcopy.lock().await.save_data_to_file(message, size).await
                     });
-                    return true;
+                    true
                 }
             }
             protocol::ClientState::EndConn => {
@@ -145,7 +145,7 @@ impl Client {
 
     fn end_connection(&mut self) -> bool {
         //write file all at once
-        if let Err(_) = self.file.write_all(&self.file_in_ram) {
+        if self.file.write_all(&self.file_in_ram).is_err() {
             eprintln!("Error! File write failed!");
         }
         //the end
@@ -166,7 +166,7 @@ impl Client {
         self.lastpacket += data.len();
         if self.lastpacket == self.filesize {
             //client received entire file, end connection
-            protocol::send(&self.socket, &protocol::END.to_vec()).await;
+            protocol::send(&self.socket, protocol::END.as_ref()).await;
         } else {
             protocol::send(
                 &self.socket,
