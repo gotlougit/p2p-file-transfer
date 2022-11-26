@@ -45,6 +45,7 @@ pub fn init(
 
 //one object which spins up tasks depending on what stage the server is at (first connection,
 //deciding to get file, receiving file etc)
+//TODO: write file dynamically to disk/use mmap() instead of keeping file in RAM
 impl Client {
     //initialize connection to server
 
