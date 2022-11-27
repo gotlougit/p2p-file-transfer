@@ -36,4 +36,4 @@ Both the client and server have async network request support.
 
 Alpha: I am basically learning network programming through this. This is in NO way usable right now.
 
-Right now, it is able to make direct connections through easy NAT and transfer one file from one machine (called a server) to another machine (called a client). Over the Internet, it is pretty slow right now due to not having concurrent download support, but it is able to handle lost packets fairly well.
+Right now, it is able to make direct connections through easy NAT and transfer one file from one machine (called a server) to another machine (called a client) over the Internet. The transfer speeds are not too great right now, though.
