@@ -176,6 +176,11 @@ impl Server {
                 protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
                 offset += protocol::DATA_SIZE;
             } else {
+                if offset > self.data.len() {
+                    //send an END packet
+                    protocol::send_to(&self.socket, src, protocol::END.as_ref()).await;
+                    return;
+                }
                 let packet =
                     protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
                 protocol::send_to(&self.socket, src, &packet).await;

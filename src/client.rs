@@ -157,6 +157,11 @@ impl Client {
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
+        if protocol::parse_end(message, size) {
+            protocol::send(&self.socket, protocol::END.as_ref()).await;
+            self.end_connection();
+            return;
+        }
         let (offset, data) = protocol::parse_data_packet(message, size);
         self.counter += 1;
         //copy data over to file_in_ram
@@ -169,6 +174,7 @@ impl Client {
         if self.lastpacket == self.filesize {
             //client received entire file, end connection
             protocol::send(&self.socket, protocol::END.as_ref()).await;
+            self.end_connection();
         } else {
             //keep track of whether we received all PROTOCOL_N packets or not
             //send request for next packet only if this is PROTOCOL_Nth packet
