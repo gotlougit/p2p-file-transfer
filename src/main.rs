@@ -129,6 +129,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     let client_obj = client::init(Arc::clone(&socket), file_to_get, filename, authtoken);
     client_obj.lock().await.init_connection().await;
     let mut last_recv = true;
+    let mut is_connected = false;
     //listen for server responses and deal with them accordingly
     loop {
         if !last_recv {
@@ -141,6 +142,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
         if let Ok((amt, _)) =
             timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await
         {
+            is_connected = true;
             //make sure program exits gracefully
             let continue_with_loop = client_obj
                 .lock()
@@ -152,6 +154,10 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
                 break;
             }
         } else {
+            if !is_connected {
+                println!("Initial connection request may have been lost! Resending...");
+                client_obj.lock().await.init_connection().await;
+            }
             println!("Client could not receive data in time!");
             last_recv = false;
         }
