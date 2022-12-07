@@ -19,7 +19,9 @@ pub fn init(valid_token: String, valid_file: String) -> AuthChecker {
 impl AuthChecker {
     pub fn is_valid_request(&self, request_body: [u8; protocol::MTU], amt: usize) -> bool {
         let (file_requested, giventoken) = protocol::parse_send_req(request_body, amt);
-
+        if file_requested.is_empty() || giventoken.is_empty() {
+            return false;
+        }
         let mut does_file_exist = false;
         if self
             .valid_files
