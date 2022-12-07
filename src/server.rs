@@ -167,6 +167,11 @@ impl Server {
             return;
         }
         let mut offset = protocol::parse_last_received(message, amt);
+        if offset >= self.data.len() {
+            //send an END packet
+            self.end_connection(src).await;
+            return;
+        }
         //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
         for _ in 0..protocol::PROTOCOL_N {
             if offset + protocol::DATA_SIZE < self.data.len() {
@@ -176,11 +181,6 @@ impl Server {
                 protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
                 offset += protocol::DATA_SIZE;
             } else {
-                if offset > self.data.len() {
-                    //send an END packet
-                    protocol::send_to(&self.socket, src, protocol::END.as_ref()).await;
-                    return;
-                }
                 let packet =
                     protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
                 protocol::send_to(&self.socket, src, &packet).await;

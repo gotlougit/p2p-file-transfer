@@ -20,6 +20,7 @@ pub struct Client {
     state: protocol::ClientState,
     file_in_ram: Vec<u8>,
     counter : usize,
+    is_file_written : bool,
 }
 
 pub fn init(
@@ -41,6 +42,7 @@ pub fn init(
         state: protocol::ClientState::NoState,
         file_in_ram: Vec::new(),
         counter: 0,
+        is_file_written: false,
     };
     Arc::new(Mutex::new(client_obj))
 }
@@ -148,9 +150,10 @@ impl Client {
 
     fn end_connection(&mut self) -> bool {
         //write file all at once
-        if self.file.write_all(&self.file_in_ram).is_err() {
+        if !self.is_file_written && self.file.write_all(&self.file_in_ram).is_err() {
             eprintln!("Error! File write failed!");
         }
+        self.is_file_written = true;
         //the end
         println!("Ending Client object...");
         false
@@ -175,6 +178,7 @@ impl Client {
             //client received entire file, end connection
             protocol::send(&self.socket, protocol::END.as_ref()).await;
             self.end_connection();
+            return;
         } else {
             //keep track of whether we received all PROTOCOL_N packets or not
             //send request for next packet only if this is PROTOCOL_Nth packet
