@@ -16,7 +16,9 @@ pub enum ClientState {
     EndConn,
 }
 
-static LASTMSG: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+pub const PROTOCOL_N : usize = 10;
+
+static LASTMSG: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 
 pub const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
@@ -58,6 +60,9 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
 
     if connected {
         println!("Seems we are connected to other machine...");
+        //empty the LASTMSG vector
+        let mut t = LASTMSG.lock().expect("Couldn't acquire lock");
+        t.truncate(0);
     } else {
         eprintln!("Direct connection was NOT able to be established!");
     }
@@ -255,15 +260,21 @@ pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
 
 //deal with retransmission of last packet that apparently was never received
 pub async fn resend(socket: &UdpSocket) {
-    let msg = LASTMSG.lock().unwrap().to_owned();
-    send(socket, &msg).await
+    //resend all packets contained in LASTMSG
+    let mut msg = LASTMSG.lock().unwrap().to_owned();
+    for i in msg.iter() {
+        send(socket, &i).await;
+    }
+    msg.truncate(0);
 }
 
 fn set_last_msg(message: &[u8]) {
     let mut t = LASTMSG.lock().expect("Could not acquire lock for LASTMSG");
-    if *t != message.to_vec() {
-        *t = message.to_vec();
+    if t.len() == PROTOCOL_N {
+        //stack full, get rid of everything as they have all been sent
+        t.truncate(0);
     }
+    t.push(message.to_vec());
 }
 
 //abstractions implemented to later make easier to modify if needed

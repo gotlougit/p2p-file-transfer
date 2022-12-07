@@ -19,6 +19,7 @@ pub struct Client {
     filesize: usize,
     state: protocol::ClientState,
     file_in_ram: Vec<u8>,
+    counter : usize,
 }
 
 pub fn init(
@@ -39,6 +40,7 @@ pub fn init(
         filesize: 0,
         state: protocol::ClientState::NoState,
         file_in_ram: Vec::new(),
+        counter: 0,
     };
     Arc::new(Mutex::new(client_obj))
 }
@@ -156,6 +158,7 @@ impl Client {
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
         let (offset, data) = protocol::parse_data_packet(message, size);
+        self.counter += 1;
         //copy data over to file_in_ram
         self.file_in_ram[offset..offset + data.len()].copy_from_slice(&data[..]);
         println!(
@@ -167,11 +170,16 @@ impl Client {
             //client received entire file, end connection
             protocol::send(&self.socket, protocol::END.as_ref()).await;
         } else {
-            protocol::send(
-                &self.socket,
-                &protocol::last_received_packet(self.lastpacket),
-            )
-            .await;
+            //keep track of whether we received all PROTOCOL_N packets or not
+            //send request for next packet only if this is PROTOCOL_Nth packet
+            //else server will automatically assume to resend packets
+            if self.counter % protocol::PROTOCOL_N == 0 {
+                self.counter = 0;
+                protocol::send(
+                    &self.socket,
+                    &protocol::last_received_packet(self.lastpacket),
+                ).await;
+            }
         }
     }
 }

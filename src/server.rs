@@ -166,19 +166,22 @@ impl Server {
             self.end_connection(src).await;
             return;
         }
-        let offset = protocol::parse_last_received(message, amt);
-        if offset + protocol::DATA_SIZE < self.data.len() {
-            let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
-            //send DATA_SIZE size chunk
-            println!("Sending a chunk...");
-            protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
-        } else {
-            //send remaining data and end connection
-            let packet =
-                protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
-            protocol::send_to(&self.socket, src, &packet).await;
-            println!("File sent completely");
-            //await END packet from client
+        let mut offset = protocol::parse_last_received(message, amt);
+        //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
+        for _ in 0..protocol::PROTOCOL_N {
+            if offset + protocol::DATA_SIZE < self.data.len() {
+                let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
+                //send DATA_SIZE size chunk
+                println!("Sending a chunk...");
+                protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
+                offset += protocol::DATA_SIZE;
+            } else {
+                let packet =
+                    protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
+                protocol::send_to(&self.socket, src, &packet).await;
+                println!("File sent completely");
+                //await END packet from client
+            }
         }
     }
 }
