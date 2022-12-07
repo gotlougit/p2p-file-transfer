@@ -56,8 +56,11 @@ async fn serve(filename: &String, authtoken: &String) {
         .read_line(&mut client_interface)
         .expect("Couldn't read from stdin");
 
+    //remove \n from input
+    let client_int = client_interface[..client_interface.len() - 1].to_string();
+
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
-    protocol::init_nat_traversal(Arc::clone(&socket), &client_interface).await;
+    protocol::init_nat_traversal(Arc::clone(&socket), &client_int).await;
 
     //print to screen what port we're using here just in case
     println!("I am serving locally at {}", socket.local_addr().unwrap());
@@ -110,13 +113,12 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
         .read_line(&mut server_interface)
         .expect("Couldn't read from stdin");
 
-    //wait 5 seconds, try connecting to server, then wait 5 more seconds
-    protocol::init_nat_traversal(Arc::clone(&socket), &server_interface).await;
-
-    //connect to *hopefully* open server port
-
     //get rid of \n from input
     let server_int = server_interface[..server_interface.len() - 1].to_string();
+    //wait 5 seconds, try connecting to server, then wait 5 more seconds
+    protocol::init_nat_traversal(Arc::clone(&socket), &server_int).await;
+
+    //connect to *hopefully* open server port
     socket
         .connect(server_int)
         .await
@@ -132,7 +134,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     let mut is_connected = false;
     //listen for server responses and deal with them accordingly
     loop {
-        if !last_recv {
+        if !last_recv && is_connected {
             protocol::resend(&socket).await;
             println!("Sent resent packet");
             last_recv = true;
@@ -142,7 +144,6 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
         if let Ok((amt, _)) =
             timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await
         {
-            is_connected = true;
             //make sure program exits gracefully
             let continue_with_loop = client_obj
                 .lock()
@@ -153,6 +154,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
                 println!("Client exiting...");
                 break;
             }
+            is_connected = true;
         } else {
             if !is_connected {
                 println!("Initial connection request may have been lost! Resending...");

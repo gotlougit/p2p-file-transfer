@@ -88,7 +88,14 @@ impl Server {
                     }
                     ClientState::EndConn => {
                         //don't make a new thread for this
-                        selfcopy.lock().await.end_connection(src).await;
+                        selfcopy.lock().await.end_connection_with_resend(src).await;
+                    }
+                    ClientState::EndedConn => {
+                        selfcopy
+                            .lock()
+                            .await
+                            .send_data_in_chunks(&srcclone, message, amt)
+                            .await;
                     }
                 }
             }
@@ -110,6 +117,12 @@ impl Server {
         println!("Sending END to {}", src);
         protocol::send_to(&self.socket, src, protocol::END.as_ref()).await;
         self.src_state_map.remove(src);
+    }
+
+    async fn end_connection_with_resend(&mut self, src: &SocketAddr) {
+        println!("Sending END to {}", src);
+        protocol::send_to(&self.socket, src, protocol::END.as_ref()).await;
+        self.change_src_state(src, ClientState::EndedConn);
     }
 
     async fn initiate_transfer_server(
@@ -169,7 +182,7 @@ impl Server {
         let mut offset = protocol::parse_last_received(message, amt);
         if offset >= self.data.len() {
             //send an END packet
-            self.end_connection(src).await;
+            self.end_connection_with_resend(src).await;
             return;
         }
         //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
@@ -185,6 +198,7 @@ impl Server {
                     protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
                 protocol::send_to(&self.socket, src, &packet).await;
                 println!("File sent completely");
+                break;
                 //await END packet from client
             }
         }

@@ -14,6 +14,7 @@ pub enum ClientState {
     ACKorNACK,
     SendFile,
     EndConn,
+    EndedConn,
 }
 
 pub const PROTOCOL_N : usize = 10;
@@ -24,7 +25,7 @@ pub const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
     thread::sleep(MAX_WAIT_TIME);
-    let om = &other_machine.to_string()[..other_machine.len() - 1]
+    let om = &other_machine.to_string()
         .to_string()
         .to_socket_addrs()
         .unwrap()

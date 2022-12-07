@@ -132,6 +132,7 @@ impl Client {
                 println!("Client has to receive the file");
                 if protocol::parse_end(message, size) {
                     println!("END received...");
+                    protocol::send(&self.socket, protocol::END.as_ref()).await;
                     self.end_connection();
                     false
                 } else {
@@ -143,6 +144,10 @@ impl Client {
             }
             protocol::ClientState::EndConn => {
                 println!("Client has received file completely...");
+                self.end_connection()
+            }
+            protocol::ClientState::EndedConn => {
+                //do nothing
                 self.end_connection()
             }
         }
@@ -160,11 +165,6 @@ impl Client {
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
-        if protocol::parse_end(message, size) {
-            protocol::send(&self.socket, protocol::END.as_ref()).await;
-            self.end_connection();
-            return;
-        }
         let (offset, data) = protocol::parse_data_packet(message, size);
         self.counter += 1;
         //copy data over to file_in_ram
@@ -173,9 +173,12 @@ impl Client {
             "Sending server msg that we have received offset {}",
             self.lastpacket
         );
+        dbg!("{}", &data);
         self.lastpacket += data.len();
-        if self.lastpacket == self.filesize {
+        if self.lastpacket >= self.filesize {
+            println!("Client received entire file, ending...");
             //client received entire file, end connection
+            self.state = protocol::ClientState::EndConn;
             protocol::send(&self.socket, protocol::END.as_ref()).await;
             self.end_connection();
             return;
