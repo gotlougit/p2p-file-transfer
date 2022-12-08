@@ -17,7 +17,7 @@ pub enum ClientState {
     EndedConn,
 }
 
-pub const PROTOCOL_N: usize = 10;
+pub const PROTOCOL_N: usize = 6;
 
 static LASTMSG: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 
