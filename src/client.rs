@@ -175,17 +175,17 @@ impl Client {
         let (offset, data) = protocol::parse_data_packet(message, size);
         self.counter += 1;
         if self.packets_recv.get(&offset).is_none() { //already been received
-            println!("Got already received packet, ignoring...");
-            return;
+            println!("Got already received packet");
+        } else {
+            //get rid of received packet from HashMap
+            self.packets_recv.remove(&offset);
+            println!("Need {} more packets", self.packets_recv.len());
+            //copy data over to file_in_ram
+            self.file_in_ram[offset..offset + data.len()].copy_from_slice(&data[..]);
         }
-        //get rid of received packet
-        self.packets_recv.remove(&offset);
-        //copy data over to file_in_ram
-        self.file_in_ram[offset..offset + data.len()].copy_from_slice(&data[..]);
         println!("Received offset {}", offset);
         self.lastpacket = offset;
-
-        if self.lastpacket >= self.filesize {
+        if self.packets_recv.len() == 0 {
             println!("Client received entire file, ending...");
             //client received entire file, end connection
             self.end_connection().await;
