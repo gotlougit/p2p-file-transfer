@@ -173,7 +173,6 @@ impl Client {
             "Sending server msg that we have received offset {}",
             self.lastpacket
         );
-        dbg!("{}", &data);
         self.lastpacket += data.len();
         if self.lastpacket >= self.filesize {
             println!("Client received entire file, ending...");
@@ -186,7 +185,7 @@ impl Client {
             //keep track of whether we received all PROTOCOL_N packets or not
             //send request for next packet only if this is PROTOCOL_Nth packet
             //else server will automatically assume to resend packets
-            if self.counter % protocol::PROTOCOL_N == 0 {
+            if self.counter != 0 && self.counter % protocol::PROTOCOL_N == 0 {
                 self.counter = 0;
                 protocol::send(
                     &self.socket,
