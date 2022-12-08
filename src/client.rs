@@ -19,8 +19,8 @@ pub struct Client {
     filesize: usize,
     state: protocol::ClientState,
     file_in_ram: Vec<u8>,
-    counter : usize,
-    is_file_written : bool,
+    counter: usize,
+    is_file_written: bool,
 }
 
 pub fn init(
@@ -168,10 +168,7 @@ impl Client {
         self.counter += 1;
         //copy data over to file_in_ram
         self.file_in_ram[offset..offset + data.len()].copy_from_slice(&data[..]);
-        println!(
-            "Received offset {}",
-            self.lastpacket
-        );
+        println!("Received offset {}", self.lastpacket);
         self.lastpacket += data.len();
         if self.lastpacket >= self.filesize {
             println!("Client received entire file, ending...");
@@ -187,7 +184,8 @@ impl Client {
                 protocol::send(
                     &self.socket,
                     &protocol::last_received_packet(self.lastpacket),
-                ).await;
+                )
+                .await;
             }
         }
     }
