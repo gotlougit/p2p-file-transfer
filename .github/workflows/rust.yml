@@ -9,7 +9,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  GITHUB_TOKEN: $${secrets.RELEASE_TOKEN}}
+  GITHUB_TOKEN: ${{secrets.RELEASE_TOKEN}}
 
 jobs:
   build:
