@@ -9,6 +9,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  GITHUB_TOKEN: $${secrets.RELEASE_TOKEN}}
 
 jobs:
   build:
@@ -18,8 +19,6 @@ jobs:
     - uses: actions/checkout@v3
     - name: Github Release
       uses: elgohr/Github-Release-Action@v4
-      env:
-        GITHUB_TOKEN = ${{secrets.RELEASE_TOKEN}}
       with:
         title: Latest_Release
       
