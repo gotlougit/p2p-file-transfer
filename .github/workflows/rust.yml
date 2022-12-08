@@ -16,11 +16,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - run: cargo build --verbose
     - uses: actions/checkout@v3
     - name: Github Release
       uses: elgohr/Github-Release-Action@v4
       with:
         title: Latest_Release
+        file: file-transfer
       
 
 
