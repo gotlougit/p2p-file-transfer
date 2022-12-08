@@ -10,7 +10,7 @@ Why not just put the huge amount of resources residential Internet users get to 
 
 ## Tech
 
-It is being coded in Rust in order to get both safety and performance, using the Tokio asynchronous framework in order to get faster performance. 
+It is being coded in Rust in order to get both safety and performance, using the Tokio asynchronous framework in order to get faster performance.
 
 Both the client and server have async network request support.
 
@@ -30,10 +30,12 @@ Both the client and server have async network request support.
 
 - Send multiple files at once.
 
-- Server should be able to perform NAT traversal for a new client that wants to connect to a running instance instead of having to run another instance of the program 
+- Server should be able to perform NAT traversal for a new client that wants to connect to a running instance instead of having to run another instance of the program
 
 ## Status
 
 Alpha: I am basically learning network programming through this. This is in NO way usable right now.
 
-Right now, it is able to make direct connections through easy NAT and transfer one file from one machine (called a server) to another machine (called a client) over the Internet. The transfer speeds are not too great right now, though.
+Right now, it is able to make direct connections through easy NAT and transfer one file from one machine (called a server) to another machine (called a client) over the Internet.
+
+Thanks to implementing Go Back N (albeit not in a traditional fashion), it is able to send files with fairly good speeds.
