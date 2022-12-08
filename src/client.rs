@@ -7,6 +7,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use tokio::task;
 use std::collections::HashMap;
+use std::process;
 
 use crate::protocol;
 
@@ -168,7 +169,7 @@ impl Client {
         protocol::send(&self.socket, protocol::END.as_ref()).await;
         //the end
         println!("Ending Client object...");
-        false
+        process::exit(0);
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
