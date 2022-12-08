@@ -169,7 +169,7 @@ impl Client {
         //copy data over to file_in_ram
         self.file_in_ram[offset..offset + data.len()].copy_from_slice(&data[..]);
         println!(
-            "Sending server msg that we have received offset {}",
+            "Received offset {}",
             self.lastpacket
         );
         self.lastpacket += data.len();
