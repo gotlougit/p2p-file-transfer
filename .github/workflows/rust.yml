@@ -2,7 +2,6 @@ name: Rust
 
 env:
   CARGO_TERM_COLOR: always
-  GITHUB_TOKEN: ${{secrets.RELEASE_TOKEN}}
 
 permissions:
   contents: write
@@ -22,7 +21,7 @@ jobs:
           # (optional) Path to changelog.
           #changelog: CHANGELOG.md
           # (required) GitHub token for creating GitHub Releases.
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
 
   upload-assets:
     strategy:
@@ -48,4 +47,4 @@ jobs:
           # [possible values: all, unix, windows, none]
           zip: windows
           # (required) GitHub token for uploading assets to GitHub Releases.
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
