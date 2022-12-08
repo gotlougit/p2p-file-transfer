@@ -88,9 +88,17 @@ impl Server {
                     }
                     ClientState::EndConn => {
                         //don't make a new thread for this
+                        if protocol::parse_end(message, amt) {
+                            self.end_connection(src).await;
+                            return;
+                        }
                         selfcopy.lock().await.end_connection_with_resend(src).await;
                     }
                     ClientState::EndedConn => {
+                        if protocol::parse_end(message, amt) {
+                            self.end_connection(src).await;
+                            return;
+                        }
                         selfcopy
                             .lock()
                             .await
@@ -114,13 +122,13 @@ impl Server {
     }
 
     async fn end_connection(&mut self, src: &SocketAddr) {
-        println!("Sending END to {}", src);
+        println!("Sending END (permanent end to connection) to {}", src);
         protocol::send_to(&self.socket, src, protocol::END.as_ref()).await;
         self.src_state_map.remove(src);
     }
 
     async fn end_connection_with_resend(&mut self, src: &SocketAddr) {
-        println!("Sending END to {}", src);
+        println!("Sending END (with resend allowed) to {}", src);
         protocol::send_to(&self.socket, src, protocol::END.as_ref()).await;
         self.change_src_state(src, ClientState::EndedConn);
     }
@@ -165,7 +173,7 @@ impl Server {
             //directly do this since connection needs to be closed anyway
             self.end_connection(src).await;
         } else {
-            println!("Client sent unknown message type for it's stage! Ignoring");
+            println!("Client sent unknown message type for its stage! Ignoring");
         }
     }
 
@@ -198,8 +206,8 @@ impl Server {
                     protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
                 protocol::send_to(&self.socket, src, &packet).await;
                 println!("File sent completely");
+                self.end_connection_with_resend(src).await;
                 break;
-                //await END packet from client
             }
         }
     }

@@ -94,7 +94,7 @@ impl Client {
                 }
                 _ => {
                     eprintln!("An error has occurred!");
-                    return self.end_connection();
+                    return self.end_connection().await;
                 }
             }
         }
@@ -120,10 +120,9 @@ impl Client {
                     println!("Stopping transfer");
                     protocol::send(&self.socket, protocol::NACK.as_ref()).await;
                     println!("Sent NACK");
-                    self.state = protocol::ClientState::EndConn;
                     //delete open file
                     remove_file(&self.file_save_as).expect("Couldn't remove file!");
-                    self.end_connection();
+                    self.end_connection().await;
                     false
                 }
             }
@@ -131,8 +130,7 @@ impl Client {
                 println!("Client has to receive the file");
                 if protocol::parse_end(message, size) && self.lastpacket == self.filesize {
                     println!("END received...");
-                    protocol::send(&self.socket, protocol::END.as_ref()).await;
-                    self.end_connection();
+                    self.end_connection().await;
                     false
                 } else {
                     task::spawn(async move {
@@ -143,21 +141,23 @@ impl Client {
             }
             protocol::ClientState::EndConn => {
                 println!("Client has received file completely...");
-                self.end_connection()
+                self.end_connection().await
             }
             protocol::ClientState::EndedConn => {
                 //do nothing
-                self.end_connection()
+                self.end_connection().await
             }
         }
     }
 
-    fn end_connection(&mut self) -> bool {
+    async fn end_connection(&mut self) -> bool {
+        self.state = protocol::ClientState::EndConn;
         //write file all at once
         if !self.is_file_written && self.file.write_all(&self.file_in_ram).is_err() {
             eprintln!("Error! File write failed!");
         }
         self.is_file_written = true;
+        protocol::send(&self.socket, protocol::END.as_ref()).await;
         //the end
         println!("Ending Client object...");
         false
@@ -176,9 +176,7 @@ impl Client {
         if self.lastpacket >= self.filesize {
             println!("Client received entire file, ending...");
             //client received entire file, end connection
-            self.state = protocol::ClientState::EndConn;
-            protocol::send(&self.socket, protocol::END.as_ref()).await;
-            self.end_connection();
+            self.end_connection().await;
             return;
         } else {
             //keep track of whether we received all PROTOCOL_N packets or not

@@ -41,7 +41,6 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
         for _ in 0..x {
             println!("Sending useless message to get firewall to open up...");
             send_to(&socket, om, ACK.as_ref()).await;
-            println!("Sent useless message to get firewall to open up...");
             let mut buf = [0u8; MTU];
             let f = recv(&socket, &mut buf);
             match timeout(MAX_WAIT_TIME, f).await {
