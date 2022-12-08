@@ -114,7 +114,6 @@ impl Client {
                     self.file_in_ram.resize(self.filesize, 0);
                     println!("Sending ACK");
                     protocol::send(&self.socket, protocol::ACK.as_ref()).await;
-                    println!("Sent ACK");
                     self.state = protocol::ClientState::SendFile;
                     true
                 } else {
@@ -130,7 +129,7 @@ impl Client {
             }
             protocol::ClientState::SendFile => {
                 println!("Client has to receive the file");
-                if protocol::parse_end(message, size) {
+                if protocol::parse_end(message, size) && self.lastpacket == self.filesize {
                     println!("END received...");
                     protocol::send(&self.socket, protocol::END.as_ref()).await;
                     self.end_connection();
