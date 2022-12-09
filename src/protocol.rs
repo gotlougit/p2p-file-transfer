@@ -4,7 +4,8 @@ use std::str;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
-use std::time::Duration;
+use std::time::SystemTime;
+use std::time::{Duration, UNIX_EPOCH};
 use stunclient::StunClient;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
@@ -24,7 +25,15 @@ static LASTMSG: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 pub const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
-    thread::sleep(MAX_WAIT_TIME);
+    //wait till next minute
+    let time_to_wait =
+        60 - (SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            % 60);
+    println!("Waiting for {} seconds", time_to_wait);
+    thread::sleep(Duration::from_secs(time_to_wait));
     let om = &other_machine
         .to_string()
         .to_string()
@@ -67,7 +76,6 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
     } else {
         eprintln!("Direct connection was NOT able to be established!");
     }
-    thread::sleep(MAX_WAIT_TIME);
 }
 
 async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
