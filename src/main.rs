@@ -90,7 +90,9 @@ async fn serve(filename: &String, authtoken: &String) {
                     .await;
             }
         } else {
-            println!("Timeout occurred!");
+            println!("Timeout occurred, asking all clients to resend!");
+            //ask all clients for resend
+            server_obj.lock().await.ask_all_to_resend().await;
         }
     }
 }
@@ -144,6 +146,10 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
         if let Ok((amt, _)) =
             timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await
         {
+            if protocol::parse_resend(buf, amt) {
+                protocol::resend(&socket).await;
+                continue;
+            }
             //make sure program exits gracefully
             let continue_with_loop = client_obj
                 .lock()

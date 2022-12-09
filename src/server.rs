@@ -129,6 +129,12 @@ impl Server {
         }
     }
 
+    pub async fn ask_all_to_resend(&self) {
+        for (src,_) in &self.src_state_map {
+            protocol::send_to(&self.socket, &src, protocol::RESEND.as_ref()).await;
+        }
+    }
+
     fn change_src_state(&mut self, src: &SocketAddr, newstate: ClientState) {
         if self.src_state_map.remove(src).is_some() {
             self.src_state_map.insert(*src, newstate);
