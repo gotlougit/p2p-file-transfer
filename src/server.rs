@@ -103,12 +103,16 @@ impl Server {
                         if protocol::parse_resend(message, amt) {
                             println!("Client may not have received last part of file! Sending last chunk...");
                             for i in 0..protocol::PROTOCOL_N {
-                                let offset : usize = self.data.len() - protocol::DATA_SIZE * (protocol::PROTOCOL_N - i);
-                                let mut len : usize = protocol::DATA_SIZE;
+                                let offset: usize = self.data.len()
+                                    - protocol::DATA_SIZE * (protocol::PROTOCOL_N - i);
+                                let mut len: usize = protocol::DATA_SIZE;
                                 if offset + len > self.data.len() {
                                     len = self.data.len() - offset;
                                 }
-                                let data = protocol::data_packet(offset, &self.data[offset..offset+len].to_vec());
+                                let data = protocol::data_packet(
+                                    offset,
+                                    &self.data[offset..offset + len].to_vec(),
+                                );
                                 protocol::send_to(&self.socket, &src, &data).await;
                             }
                         } else {
@@ -130,7 +134,7 @@ impl Server {
     }
 
     pub async fn ask_all_to_resend(&self) {
-        for (src,_) in &self.src_state_map {
+        for (src, _) in &self.src_state_map {
             protocol::send_to(&self.socket, &src, protocol::RESEND.as_ref()).await;
         }
     }
