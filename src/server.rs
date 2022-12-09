@@ -96,7 +96,6 @@ impl Server {
                     }
                     ClientState::EndedConn => {
                         if protocol::parse_end(message, amt) {
-                            println!("hi");
                             self.end_connection(src).await;
                             return;
                         }
