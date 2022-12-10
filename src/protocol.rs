@@ -19,6 +19,7 @@ pub enum ClientState {
 }
 
 pub const PROTOCOL_N: usize = 6;
+const DIVIDER: u64 = 15;
 
 static LASTMSG: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 
@@ -26,12 +27,13 @@ pub const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
 pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
     //wait till next minute
-    let time_to_wait =
-        60 - (SystemTime::now()
+
+    let time_to_wait = DIVIDER
+        - (SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs()
-            % 60);
+            % DIVIDER);
     println!("Waiting for {} seconds", time_to_wait);
     thread::sleep(Duration::from_secs(time_to_wait));
     let om = &other_machine
