@@ -1,13 +1,14 @@
 //implements client object which is capable of handling one file from one server
+use memmap2::MmapMut;
+use std::collections::HashMap;
+use std::fs;
 use std::fs::{remove_file, File};
-use std::io;
-use std::io::Write;
+use std::io::{stdin, Seek, SeekFrom, Write};
+use std::process::exit;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use tokio::task;
-use std::collections::HashMap;
-use std::process;
 
 use crate::protocol;
 
@@ -17,13 +18,10 @@ pub struct Client {
     filename: String,
     file_save_as: String,
     authtoken: String,
-    lastpacket: usize,
     filesize: usize,
     state: protocol::ClientState,
-    file_in_ram: Vec<u8>,
     counter: usize,
-    is_file_written: bool,
-    packets_recv : HashMap<usize, bool>
+    packets_recv: HashMap<usize, bool>,
 }
 
 pub fn init(
@@ -32,7 +30,12 @@ pub fn init(
     filename: &String,
     authtoken: &String,
 ) -> Arc<Mutex<Client>> {
-    let fd = File::create(filename).expect("Couldn't create file!");
+    let fd = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(filename)
+        .unwrap();
 
     let client_obj = Client {
         socket,
@@ -40,12 +43,9 @@ pub fn init(
         filename: file_to_get.to_string(),
         file_save_as: filename.to_string(),
         authtoken: authtoken.to_string(),
-        lastpacket: 0,
         filesize: 0,
         state: protocol::ClientState::NoState,
-        file_in_ram: Vec::new(),
         counter: 0,
-        is_file_written: false,
         packets_recv: HashMap::new(),
     };
     Arc::new(Mutex::new(client_obj))
@@ -71,7 +71,7 @@ impl Client {
         }
         println!("Size of file is: {}", self.filesize);
         println!("Initiate transfer? (Y/N)");
-        let stdin = io::stdin();
+        let stdin = stdin();
         let mut input = String::new();
         stdin
             .read_line(&mut input)
@@ -114,13 +114,17 @@ impl Client {
                 let decision = self.get_user_decision();
                 //send ACK/NACK
                 if decision {
-                    //fix size of vector
-                    self.file_in_ram.resize(self.filesize, 0);
                     //setup HashMap to keep track of all received packets
                     let max_packets = self.filesize / protocol::DATA_SIZE + 1;
                     for i in 0..max_packets {
                         self.packets_recv.insert(protocol::DATA_SIZE * i, false);
                     }
+                    //fix size of file
+                    self.file
+                        .seek(SeekFrom::Start(self.filesize as u64 - 1))
+                        .unwrap();
+                    self.file.write_all(&[0]).unwrap();
+                    self.file.seek(SeekFrom::Start(0)).unwrap();
                     println!("Sending ACK");
                     protocol::send(&self.socket, protocol::ACK.as_ref()).await;
                     self.state = protocol::ClientState::SendFile;
@@ -145,6 +149,7 @@ impl Client {
                     task::spawn(async move {
                         selfcopy.lock().await.save_data_to_file(message, size).await
                     });
+                    //self.save_data_to_file(message, size).await;
                     true
                 }
             }
@@ -161,32 +166,31 @@ impl Client {
 
     async fn end_connection(&mut self) -> bool {
         self.state = protocol::ClientState::EndConn;
-        //write file all at once
-        if !self.is_file_written && self.file.write_all(&self.file_in_ram).is_err() {
-            eprintln!("Error! File write failed!");
-        }
-        self.is_file_written = true;
         protocol::send(&self.socket, protocol::END.as_ref()).await;
         //the end
         println!("Ending Client object...");
-        process::exit(0);
+        print!("\n");
+        exit(0);
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
         let (offset, data) = protocol::parse_data_packet(message, size);
-        self.counter += 1;
-        if self.packets_recv.get(&offset).is_none() { //already been received
+        if self.packets_recv.get(&offset).is_none() {
+            //already been received, assume we already have it inside memory
             println!("Got already received packet");
         } else {
             //get rid of received packet from HashMap
             self.packets_recv.remove(&offset);
-            println!("Need {} more packets", self.packets_recv.len());
-            //copy data over to file_in_ram
-            self.file_in_ram[offset..offset + data.len()].copy_from_slice(&data[..]);
+            //write data to mmap()'d file
+            unsafe {
+                let mut mmap = MmapMut::map_mut(&self.file).unwrap();
+                mmap[offset..offset + data.len()].copy_from_slice(&data[..]);
+            };
         }
+        println!("Need {} more packets", self.packets_recv.len());
+        self.counter += 1;
         println!("Received offset {}", offset);
-        self.lastpacket = offset;
-        if self.packets_recv.len() == 0 {
+        if self.packets_recv.is_empty() {
             println!("Client received entire file, ending...");
             //client received entire file, end connection
             self.end_connection().await;
@@ -197,10 +201,9 @@ impl Client {
             //else server will automatically assume to resend packets
             if self.counter != 0 && self.counter % protocol::PROTOCOL_N == 0 {
                 self.counter = 0;
-                self.lastpacket += data.len();
                 protocol::send(
                     &self.socket,
-                    &protocol::last_received_packet(self.lastpacket),
+                    &protocol::last_received_packet(offset + data.len()),
                 )
                 .await;
             }
