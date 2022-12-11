@@ -22,6 +22,7 @@ pub struct Client {
     state: protocol::ClientState,
     counter: usize,
     packets_recv: HashMap<usize, bool>,
+    packet_cache: HashMap<usize, Vec<u8>>
 }
 
 pub fn init(
@@ -47,6 +48,7 @@ pub fn init(
         state: protocol::ClientState::NoState,
         counter: 0,
         packets_recv: HashMap::new(),
+        packet_cache : HashMap::new()
     };
     Arc::new(Mutex::new(client_obj))
 }
@@ -164,9 +166,25 @@ impl Client {
         }
     }
 
+    //writes to file from packets in cache and clears map
+    fn write_to_file(&mut self) -> usize {
+        let mut last = 0;
+        for (offset, data) in self.packet_cache.iter() {
+            unsafe {
+                let mut mmap = MmapMut::map_mut(&self.file).unwrap();
+                last = offset + data.len();
+                mmap[*offset..*offset + data.len()].copy_from_slice(&data[..]);
+            };
+        }
+        self.packet_cache.clear();
+        last
+    }
+
     async fn end_connection(&mut self) -> bool {
         self.state = protocol::ClientState::EndConn;
         protocol::send(&self.socket, protocol::END.as_ref()).await;
+        //write remaining packets in packet_cache
+        self.write_to_file();
         //the end
         println!("Ending Client object...");
         print!("\n");
@@ -181,11 +199,8 @@ impl Client {
         } else {
             //get rid of received packet from HashMap
             self.packets_recv.remove(&offset);
-            //write data to mmap()'d file
-            unsafe {
-                let mut mmap = MmapMut::map_mut(&self.file).unwrap();
-                mmap[offset..offset + data.len()].copy_from_slice(&data[..]);
-            };
+            //save to packet_cache
+            self.packet_cache.insert(offset, data);
         }
         println!("Need {} more packets", self.packets_recv.len());
         self.counter += 1;
@@ -201,9 +216,11 @@ impl Client {
             //else server will automatically assume to resend packets
             if self.counter != 0 && self.counter % protocol::PROTOCOL_N == 0 {
                 self.counter = 0;
+                //write to file in batches only
+                let last = self.write_to_file();
                 protocol::send(
                     &self.socket,
-                    &protocol::last_received_packet(offset + data.len()),
+                    &protocol::last_received_packet(last),
                 )
                 .await;
             }
