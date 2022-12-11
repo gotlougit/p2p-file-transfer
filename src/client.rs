@@ -143,7 +143,7 @@ impl Client {
             }
             protocol::ClientState::SendFile => {
                 println!("Client has to receive the file");
-                if protocol::parse_end(message, size) && self.packets_recv.len() == 0 {
+                if protocol::parse_end(message, size) && self.packets_recv.is_empty() {
                     println!("END received...");
                     self.end_connection().await;
                     false
@@ -187,7 +187,6 @@ impl Client {
         self.write_to_file();
         //the end
         println!("Ending Client object...");
-        print!("\n");
         exit(0);
     }
 
@@ -209,12 +208,11 @@ impl Client {
             println!("Client received entire file, ending...");
             //client received entire file, end connection
             self.end_connection().await;
-            return;
         } else {
             //keep track of whether we received all PROTOCOL_N packets or not
             //send request for next packet only if this is PROTOCOL_Nth packet
             //else server will automatically assume to resend packets
-            if self.counter != 0 && self.counter % protocol::PROTOCOL_N == 0 {
+            if self.counter != 0 && self.counter % protocol::read_n() == 0 {
                 self.counter = 0;
                 //write to file in batches only
                 let last = self.write_to_file();

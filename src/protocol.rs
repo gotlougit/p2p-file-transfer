@@ -18,7 +18,28 @@ pub enum ClientState {
     EndedConn,
 }
 
-pub const PROTOCOL_N: usize = 6;
+const INITIAL_N : usize = 6;
+const MAX_N : usize = 75;
+
+static PROTOCOL_N: Mutex<usize> = Mutex::new(INITIAL_N);
+
+fn grow_n() {
+    let mut n = PROTOCOL_N.lock().unwrap();
+    if *n != MAX_N {
+        *n += 1;
+    }
+}
+
+fn reset_n() {
+    let mut n = PROTOCOL_N.lock().unwrap();
+    *n = INITIAL_N;
+}
+
+pub fn read_n() -> usize {
+    let n = PROTOCOL_N.lock().unwrap();
+    *n
+}
+
 const DIVIDER: u64 = 15;
 
 static LASTMSG: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
@@ -37,7 +58,6 @@ pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) 
     println!("Waiting for {} seconds", time_to_wait);
     thread::sleep(Duration::from_secs(time_to_wait));
     let om = &other_machine
-        .to_string()
         .to_string()
         .to_socket_addrs()
         .unwrap()
@@ -148,6 +168,7 @@ pub const RESEND: [u8; 6] = *b"RESEND";
 
 pub fn parse_resend(message: [u8; MTU], amt: usize) -> bool {
     if amt == 6 && message[..6] == RESEND {
+        reset_n();
         return true;
     }
     false
@@ -271,17 +292,18 @@ pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
 
 //deal with retransmission of last packet that apparently was never received
 pub async fn resend(socket: &UdpSocket) {
+    reset_n();
     //resend all packets contained in LASTMSG
     let mut msg = LASTMSG.lock().unwrap().to_owned();
     for i in msg.iter() {
-        send(socket, &i).await;
+        send(socket, i).await;
     }
     msg.truncate(0);
 }
 
 fn set_last_msg(message: &[u8]) {
     let mut t = LASTMSG.lock().expect("Could not acquire lock for LASTMSG");
-    if t.len() == PROTOCOL_N {
+    if t.len() == read_n() {
         //stack full, get rid of everything as they have all been sent
         t.truncate(0);
     }
@@ -294,6 +316,7 @@ pub async fn send_to(socket: &UdpSocket, src: &SocketAddr, message: &[u8]) {
         .send_to(message, src)
         .await
         .expect("protocol.rs: Send request failed!");
+    grow_n();
     set_last_msg(message);
 }
 
@@ -302,10 +325,12 @@ pub async fn send(socket: &UdpSocket, message: &[u8]) {
         .send(message)
         .await
         .expect("protocol.rs: Send request failed!");
+    grow_n();
     set_last_msg(message);
 }
 
 pub async fn recv(socket: &UdpSocket, buffer: &mut [u8; MTU]) -> (usize, SocketAddr) {
+    grow_n();
     socket
         .recv_from(&mut buffer[..])
         .await

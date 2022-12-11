@@ -101,9 +101,10 @@ impl Server {
                         }
                         if protocol::parse_resend(message, amt) {
                             println!("Client may not have received last part of file! Sending last chunk...");
-                            for i in 0..protocol::PROTOCOL_N {
+                            let n = protocol::read_n();
+                            for i in 0..n {
                                 let offset: usize = self.data.len()
-                                    - protocol::DATA_SIZE * (protocol::PROTOCOL_N - i);
+                                    - protocol::DATA_SIZE * (n - i);
                                 let mut len: usize = protocol::DATA_SIZE;
                                 if offset + len > self.data.len() {
                                     len = self.data.len() - offset;
@@ -112,7 +113,7 @@ impl Server {
                                     offset,
                                     &self.data[offset..offset + len].to_vec(),
                                 );
-                                protocol::send_to(&self.socket, &src, &data).await;
+                                protocol::send_to(&self.socket, src, &data).await;
                             }
                         } else {
                             selfcopy
@@ -133,8 +134,8 @@ impl Server {
     }
 
     pub async fn ask_all_to_resend(&self) {
-        for (src, _) in &self.src_state_map {
-            protocol::send_to(&self.socket, &src, protocol::RESEND.as_ref()).await;
+        for src in self.src_state_map.keys() {
+            protocol::send_to(&self.socket, src, protocol::RESEND.as_ref()).await;
         }
     }
 
@@ -217,7 +218,7 @@ impl Server {
             return;
         }
         //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
-        for _ in 0..protocol::PROTOCOL_N {
+        for _ in 0..protocol::read_n() {
             if offset + protocol::DATA_SIZE < self.data.len() {
                 let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
                 //send DATA_SIZE size chunk
