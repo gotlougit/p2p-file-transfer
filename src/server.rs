@@ -223,7 +223,12 @@ impl Server {
                 let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
                 //send DATA_SIZE size chunk
                 println!("Sending a chunk...");
-                protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
+                let socketcopy = self.socket.clone();
+                let srccopy = src.clone();
+                task::spawn(async move {
+                    protocol::send_to(&socketcopy, &srccopy, &protocol::data_packet(offset, &packet)).await;
+                });
+                //protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
                 offset += protocol::DATA_SIZE;
             } else {
                 let packet =
