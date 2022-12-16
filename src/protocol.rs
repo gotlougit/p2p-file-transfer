@@ -18,15 +18,15 @@ pub enum ClientState {
     EndedConn,
 }
 
-const INITIAL_N : usize = 6;
-const MAX_N : usize = 75;
+const INITIAL_N : usize = 8;
+const MAX_N : usize = 256;
 
 static PROTOCOL_N: Mutex<usize> = Mutex::new(INITIAL_N);
 
 fn grow_n() {
     let mut n = PROTOCOL_N.lock().unwrap();
-    if *n != MAX_N {
-        *n += 1;
+    if *n * 2 != MAX_N {
+        *n = *n * 2;
     }
 }
 
