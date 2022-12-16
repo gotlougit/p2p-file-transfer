@@ -135,7 +135,7 @@ impl Server {
 
     pub async fn ask_all_to_resend(&self) {
         for src in self.src_state_map.keys() {
-            protocol::send_to(&self.socket, src, protocol::RESEND.as_ref()).await;
+            protocol::ask_for_resend(&self.socket, src).await;
         }
     }
 

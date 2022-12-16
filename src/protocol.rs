@@ -290,6 +290,11 @@ pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
     (offset, message[sizeofheader..amt].to_vec())
 }
 
+pub async fn ask_for_resend(socket : &UdpSocket, src : &SocketAddr) {
+    reset_n();
+    send_to(&socket, src, RESEND.as_ref()).await;
+}
+
 //deal with retransmission of last packet that apparently was never received
 pub async fn resend(socket: &UdpSocket) {
     reset_n();
