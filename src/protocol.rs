@@ -25,7 +25,7 @@ static PROTOCOL_N: Mutex<usize> = Mutex::new(INITIAL_N);
 
 fn grow_n() {
     let mut n = PROTOCOL_N.lock().unwrap();
-    if *n * 2 != MAX_N {
+    if *n * 2 <= MAX_N {
         *n = *n * 2;
     }
 }
