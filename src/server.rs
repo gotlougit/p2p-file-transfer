@@ -1,6 +1,6 @@
 //implements server object which is capable of handling multiple clients at once
 use std::collections::HashMap;
-use memmap2::MmapMut;
+use memmap2::Mmap;
 use std::fs::OpenOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use crate::protocol::ClientState;
 
 pub struct Server {
     socket: Arc<UdpSocket>,
-    data: MmapMut,
+    data: Mmap,
     size_msg: Vec<u8>,
     dummy_size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, ClientState>,
@@ -33,7 +33,7 @@ pub fn init(
         .open(&filename)
         .unwrap();
     unsafe {
-        let mmap = MmapMut::map_mut(&fd).unwrap();
+        let mmap = Mmap::map(&fd).unwrap();
         let filesize = mmap.len();
         let server_obj = Server {
             socket,
