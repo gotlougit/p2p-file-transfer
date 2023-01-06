@@ -18,8 +18,8 @@ pub enum ClientState {
     EndedConn,
 }
 
-const INITIAL_N : usize = 8;
-const MAX_N : usize = 256;
+const INITIAL_N : usize = 6;
+const MAX_N : usize = 75;
 
 static PROTOCOL_N: Mutex<usize> = Mutex::new(INITIAL_N);
 
@@ -165,6 +165,25 @@ pub fn parse_end(message: [u8; MTU], amt: usize) -> bool {
 }
 
 pub const RESEND: [u8; 6] = *b"RESEND";
+
+pub fn resend_offset(offset : usize) -> Vec<u8> {
+    let s = String::from("RESEND ") + &offset.to_string();
+    s.as_bytes().to_vec()
+
+}
+
+pub fn parse_resend_offset(message : [u8; MTU], amt: usize) -> usize {
+    let req = parse_generic_req(message, amt);
+    if req.is_empty() {
+        println!("Error! Invalid resend request!");
+    }
+    reset_n();
+    let offset_requested = match req.split("RESEND ").collect::<Vec<&str>>().get(1) {
+        Some(x) => x.to_string().parse::<usize>().unwrap(),
+        None => 0
+    };
+    offset_requested
+}
 
 pub fn parse_resend(message: [u8; MTU], amt: usize) -> bool {
     if amt == 6 && message[..6] == RESEND {
