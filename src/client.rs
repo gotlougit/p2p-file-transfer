@@ -1,5 +1,6 @@
 //implements client object which is capable of handling one file from one server
 use memmap2::MmapMut;
+use tokio::time::timeout;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::{remove_file, File};
@@ -7,8 +8,6 @@ use std::io::{stdin, Seek, SeekFrom, Write};
 use std::process::exit;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
-use tokio::sync::Mutex;
-use tokio::task;
 
 use crate::protocol;
 
@@ -30,7 +29,7 @@ pub fn init(
     file_to_get: &String,
     filename: &String,
     authtoken: &String,
-) -> Arc<Mutex<Client>> {
+) -> Client {
     let fd = fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -50,7 +49,7 @@ pub fn init(
         packets_recv: HashMap::new(),
         packet_cache : HashMap::new()
     };
-    Arc::new(Mutex::new(client_obj))
+    client_obj
 }
 
 //one object which spins up tasks depending on what stage the server is at (first connection,
@@ -58,12 +57,49 @@ pub fn init(
 //TODO: write file dynamically to disk/use mmap() instead of keeping file in RAM
 impl Client {
     //initialize connection to server
-
     pub async fn init_connection(&mut self) {
         println!("Client has new connection to make!");
         let filereq = protocol::send_req(&self.filename, &self.authtoken);
         protocol::send(&self.socket, &filereq).await;
         self.state = protocol::ClientState::ACKorNACK;
+    }
+
+    pub async fn mainloop(&mut self) {
+        let mut last_recv = true;
+        let mut is_connected = false;
+        loop {
+            if !last_recv && is_connected {
+                protocol::resend(&self.socket).await;
+                println!("Sent resent packet");
+                last_recv = true;
+            }
+
+            let mut buf = [0u8; protocol::MTU];
+            if let Ok((amt, _)) =
+                timeout(protocol::MAX_WAIT_TIME, protocol::recv(&self.socket, &mut buf)).await
+            {
+                if protocol::parse_resend(buf, amt) {
+                    protocol::resend(&self.socket).await;
+                    continue;
+                }
+                //make sure program exits gracefully
+                let continue_with_loop = self
+                    .process_msg(buf, amt)
+                    .await;
+                if !continue_with_loop {
+                    println!("Client exiting...");
+                    break;
+                }
+                is_connected = true;
+            } else {
+                if !is_connected {
+                    println!("Initial connection request may have been lost! Resending...");
+                    self.init_connection().await;
+                }
+                println!("Client could not receive data in time!");
+                last_recv = false;
+            }
+        }
     }
 
     fn get_user_decision(&self) -> bool {
@@ -85,11 +121,10 @@ impl Client {
     }
 
     //pass message received here to determine what to do; action will be taken asynchronously
-    pub async fn process_msg(
+    async fn process_msg(
         &mut self,
         message: [u8; protocol::MTU],
         size: usize,
-        selfcopy: Arc<Mutex<Client>>,
     ) -> bool {
         if size == 0 {
             //maybe new connection
@@ -148,10 +183,7 @@ impl Client {
                     self.end_connection().await;
                     false
                 } else {
-                    task::spawn(async move {
-                        selfcopy.lock().await.save_data_to_file(message, size).await
-                    });
-                    //self.save_data_to_file(message, size).await;
+                    self.save_data_to_file(message, size).await;
                     true
                 }
             }

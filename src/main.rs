@@ -2,7 +2,6 @@ use std::env;
 use std::io;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
-use tokio::time::timeout;
 
 mod auth;
 mod client;
@@ -87,46 +86,10 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     println!("I am receiving at {}", socket.local_addr().unwrap());
 
     //create Client object and send initial request to server
-    let client_obj = client::init(Arc::clone(&socket), file_to_get, filename, authtoken);
-    client_obj.lock().await.init_connection().await;
-    let mut last_recv = true;
-    let mut is_connected = false;
+    let mut client_obj = client::init(Arc::clone(&socket), file_to_get, filename, authtoken);
+    client_obj.init_connection().await;
     //listen for server responses and deal with them accordingly
-    loop {
-        if !last_recv && is_connected {
-            protocol::resend(&socket).await;
-            println!("Sent resent packet");
-            last_recv = true;
-        }
-
-        let mut buf = [0u8; protocol::MTU];
-        if let Ok((amt, _)) =
-            timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await
-        {
-            if protocol::parse_resend(buf, amt) {
-                protocol::resend(&socket).await;
-                continue;
-            }
-            //make sure program exits gracefully
-            let continue_with_loop = client_obj
-                .lock()
-                .await
-                .process_msg(buf, amt, client_obj.clone())
-                .await;
-            if !continue_with_loop {
-                println!("Client exiting...");
-                break;
-            }
-            is_connected = true;
-        } else {
-            if !is_connected {
-                println!("Initial connection request may have been lost! Resending...");
-                client_obj.lock().await.init_connection().await;
-            }
-            println!("Client could not receive data in time!");
-            last_recv = false;
-        }
-    }
+    client_obj.mainloop().await;
 }
 
 #[tokio::main]
