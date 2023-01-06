@@ -44,34 +44,14 @@ async fn serve(filename: &String, authtoken: &String) {
     println!("I am serving locally at {}", socket.local_addr().unwrap());
 
     //construct Server object
-    let server_obj = server::init(
+    let mut server_obj = server::init(
         Arc::clone(&socket),
         filename.to_string(),
         authtoken.to_string(),
     );
 
     //main loop which listens for connections and serves data depending on stage
-    loop {
-        let mut buf = [0u8; protocol::MTU];
-        if let Ok((amt, src)) =
-            timeout(protocol::MAX_WAIT_TIME, protocol::recv(&socket, &mut buf)).await
-        {
-            if protocol::parse_resend(buf, amt) {
-                println!("Need to resend!");
-                protocol::resend(&socket).await;
-            } else {
-                server_obj
-                    .lock()
-                    .await
-                    .process_msg(&src, buf, amt, server_obj.clone())
-                    .await;
-            }
-        } else {
-            println!("Timeout occurred, asking all clients to resend!");
-            //ask all clients for resend
-            server_obj.lock().await.ask_all_to_resend().await;
-        }
-    }
+    server_obj.mainloop().await;
 }
 
 async fn client(file_to_get: &String, filename: &String, authtoken: &String) {

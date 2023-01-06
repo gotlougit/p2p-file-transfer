@@ -1,11 +1,11 @@
 //implements server object which is capable of handling multiple clients at once
 use std::collections::HashMap;
+use tokio::time::timeout;
 use memmap2::Mmap;
 use std::fs::OpenOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
-use tokio::sync::Mutex;
 use tokio::task;
 
 use crate::auth;
@@ -25,7 +25,7 @@ pub fn init(
     socket: Arc<UdpSocket>,
     filename: String,
     authtoken: String,
-) -> Arc<Mutex<Server>> {
+) -> Server {
     let fd = OpenOptions::new()
         .read(true)
         .write(false)
@@ -43,7 +43,7 @@ pub fn init(
             src_state_map: HashMap::new(),
             authchecker: auth::init(authtoken, filename),
         };
-        Arc::new(Mutex::new(server_obj))
+        server_obj
     }
 }
 
@@ -52,13 +52,35 @@ pub fn init(
 //TODO: have server be able to serve multiple files on demand
 //TODO: have server read file on demand instead of keeping a single file around forever in memory
 impl Server {
+
+    pub async fn mainloop(&mut self) {
+        loop {
+            let mut buf = [0u8; protocol::MTU];
+            if let Ok((amt, src)) =
+                timeout(protocol::MAX_WAIT_TIME, protocol::recv(&self.socket, &mut buf)).await
+            {
+                if protocol::parse_resend(buf, amt) {
+                    println!("Need to resend!");
+                    protocol::resend(&self.socket).await;
+                } else {
+                    self
+                        .process_msg(&src, buf, amt)
+                        .await;
+                }
+            } else {
+                println!("Timeout occurred, asking all clients to resend!");
+                //ask all clients for resend
+                self.ask_all_to_resend().await;
+            }
+        }
+    }
+
     //pass message received here to determine what to do; action will be taken asynchronously
-    pub async fn process_msg(
+    async fn process_msg(
         &mut self,
         src: &SocketAddr,
         message: [u8; protocol::MTU],
         amt: usize,
-        selfcopy: Arc<Mutex<Server>>,
     ) {
         if self.src_state_map.contains_key(src) {
             println!("Found prev connection, checking state and handling corresponding call..");
@@ -81,37 +103,21 @@ impl Server {
             }
             //we are already communicating with client
             if let Some(curstate) = self.src_state_map.get(src) {
-                let srcclone = src.clone();
                 match curstate {
                     ClientState::NoState => {
-                        task::spawn(async move {
-                            println!("Running initial server response...");
-                            selfcopy
-                                .lock()
-                                .await
-                                .initiate_transfer_server(&srcclone, message, amt)
-                                .await;
-                        });
+                        self
+                            .initiate_transfer_server(&src, message, amt)
+                            .await;
                     }
                     ClientState::ACKorNACK => {
-                        task::spawn(async move {
-                            println!("Checking ACK or NACK...");
-                            selfcopy
-                                .lock()
-                                .await
-                                .check_ack_or_nack(&srcclone, message, amt)
-                                .await;
-                        });
+                        self
+                            .check_ack_or_nack(&src, message, amt)
+                            .await;
                     }
                     ClientState::SendFile => {
-                        task::spawn(async move {
-                            println!("Sending data in chunks...");
-                            selfcopy
-                                .lock()
-                                .await
-                                .send_data_in_chunks(&srcclone, message, amt)
-                                .await;
-                        });
+                        self
+                            .send_data_in_chunks(&src, message, amt)
+                            .await;
                     }
                     ClientState::EndConn => {
                         //don't make a new thread for this
@@ -119,7 +125,7 @@ impl Server {
                             self.end_connection(src).await;
                             return;
                         }
-                        selfcopy.lock().await.end_connection_with_resend(src).await;
+                        self.end_connection_with_resend(src).await;
                     }
                     ClientState::EndedConn => {
                         if protocol::parse_end(message, amt) {
@@ -143,10 +149,8 @@ impl Server {
                                 protocol::send_to(&self.socket, src, &data).await;
                             }
                         } else {
-                            selfcopy
-                                .lock()
-                                .await
-                                .send_data_in_chunks(&srcclone, message, amt)
+                            self
+                                .send_data_in_chunks(&src, message, amt)
                                 .await;
                         }
                     }
