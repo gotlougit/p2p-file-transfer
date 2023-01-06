@@ -1,7 +1,5 @@
 use std::env;
-use std::fs::File;
 use std::io;
-use std::io::Read;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
@@ -11,29 +9,9 @@ mod client;
 mod protocol;
 mod server;
 
-fn get_file_size(filename: &String) -> u64 {
-    let metadata = std::fs::metadata(filename).expect("Couldn't get metadata!");
-    metadata.len()
-}
-
-fn get_file_to_serve(filename: &String, filesize: u64) -> Arc<Vec<u8>> {
-    let mut file = match File::open(filename) {
-        Err(e) => panic!("couldn't open given file! {}", e),
-        Ok(file) => file,
-    };
-    let mut data = vec![0; filesize as usize];
-    file.read_exact(&mut data)
-        .expect("buffer overflow while reading file!");
-    Arc::new(data)
-}
-
 async fn serve(filename: &String, authtoken: &String) {
     //get random port from OS to serve on
     let interface = "0.0.0.0:0";
-
-    //file handling; just reads the file into vector
-    let datasize = get_file_size(filename);
-    let data = get_file_to_serve(filename, datasize);
 
     //open socket and start networking!
     let socket = Arc::new(
@@ -68,7 +46,6 @@ async fn serve(filename: &String, authtoken: &String) {
     //construct Server object
     let server_obj = server::init(
         Arc::clone(&socket),
-        Arc::clone(&data),
         filename.to_string(),
         authtoken.to_string(),
     );

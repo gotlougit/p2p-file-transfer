@@ -1,5 +1,7 @@
 //implements server object which is capable of handling multiple clients at once
 use std::collections::HashMap;
+use memmap2::MmapMut;
+use std::fs::OpenOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -12,7 +14,7 @@ use crate::protocol::ClientState;
 
 pub struct Server {
     socket: Arc<UdpSocket>,
-    data: Arc<Vec<u8>>,
+    data: MmapMut,
     size_msg: Vec<u8>,
     dummy_size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, ClientState>,
@@ -21,20 +23,28 @@ pub struct Server {
 
 pub fn init(
     socket: Arc<UdpSocket>,
-    data: Arc<Vec<u8>>,
     filename: String,
     authtoken: String,
 ) -> Arc<Mutex<Server>> {
-    let filesize = data.len();
-    let server_obj = Server {
-        socket,
-        data,
-        size_msg: protocol::filesize_packet(filesize),
-        dummy_size_msg: protocol::filesize_packet(0),
-        src_state_map: HashMap::new(),
-        authchecker: auth::init(authtoken, filename),
-    };
-    Arc::new(Mutex::new(server_obj))
+    let fd = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .create(false)
+        .open(&filename)
+        .unwrap();
+    unsafe {
+        let mmap = MmapMut::map_mut(&fd).unwrap();
+        let filesize = mmap.len();
+        let server_obj = Server {
+            socket,
+            data: mmap,
+            size_msg: protocol::filesize_packet(filesize),
+            dummy_size_msg: protocol::filesize_packet(0),
+            src_state_map: HashMap::new(),
+            authchecker: auth::init(authtoken, filename),
+        };
+        Arc::new(Mutex::new(server_obj))
+    }
 }
 
 //one object which spins up tasks depending on what stage the client is at (first connection,
@@ -52,6 +62,23 @@ impl Server {
     ) {
         if self.src_state_map.contains_key(src) {
             println!("Found prev connection, checking state and handling corresponding call..");
+            if protocol::parse_resend(message, amt) {
+                println!("Client may not have received last part of file! Sending last chunk...");
+                let n = protocol::read_n();
+                for i in 0..n {
+                    let offset: usize = self.data.len()
+                        - protocol::DATA_SIZE * (n - i);
+                    let mut len: usize = protocol::DATA_SIZE;
+                    if offset + len > self.data.len() {
+                        len = self.data.len() - offset;
+                    }
+                    let data = protocol::data_packet(
+                        offset,
+                        &self.data[offset..offset + len].to_vec(),
+                    );
+                    protocol::send_to(&self.socket, src, &data).await;
+                }
+            }
             //we are already communicating with client
             if let Some(curstate) = self.src_state_map.get(src) {
                 let srcclone = src.clone();
