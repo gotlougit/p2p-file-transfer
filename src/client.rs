@@ -202,10 +202,10 @@ impl Client {
     fn write_to_file(&mut self) -> usize {
         let mut last = 0;
         for (offset, data) in self.packet_cache.iter() {
+            last = offset + data.len();
             unsafe {
                 let mut mmap = MmapMut::map_mut(&self.file).unwrap();
-                last = offset + data.len();
-                mmap[*offset..*offset + data.len()].copy_from_slice(&data[..]);
+                mmap[*offset..last].copy_from_slice(&data[..]);
             };
         }
         self.packet_cache.clear();
