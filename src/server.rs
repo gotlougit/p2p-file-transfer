@@ -71,20 +71,6 @@ impl Server {
     async fn process_msg(&mut self, src: &SocketAddr, message: [u8; protocol::MTU], amt: usize) {
         if self.src_state_map.contains_key(src) {
             println!("Found prev connection, checking state and handling corresponding call..");
-            if protocol::parse_resend(message, amt) {
-                println!("Client may not have received last part of file! Sending last chunk...");
-                let n = protocol::read_n();
-                for i in 0..n {
-                    let offset: usize = self.data.len() - protocol::DATA_SIZE * (n - i);
-                    let mut len: usize = protocol::DATA_SIZE;
-                    if offset + len > self.data.len() {
-                        len = self.data.len() - offset;
-                    }
-                    let data =
-                        protocol::data_packet(offset, &self.data[offset..offset + len].to_vec());
-                    protocol::send_to(&self.socket, src, &data).await;
-                }
-            }
             //we are already communicating with client
             if let Some(curstate) = self.src_state_map.get(src) {
                 match curstate {
