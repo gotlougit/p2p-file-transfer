@@ -84,7 +84,6 @@ impl Server {
                         self.send_data_in_chunks(&src, message, amt).await;
                     }
                     ClientState::EndConn => {
-                        //don't make a new thread for this
                         if protocol::parse_end(message, amt) {
                             self.end_connection(src).await;
                             return;
@@ -99,17 +98,10 @@ impl Server {
                         if protocol::parse_resend(message, amt) {
                             println!("Client may not have received last part of file! Sending last chunk...");
                             let n = protocol::read_n();
-                            for i in 0..n {
-                                let offset: usize = self.data.len() - protocol::DATA_SIZE * (n - i);
-                                let mut len: usize = protocol::DATA_SIZE;
-                                if offset + len > self.data.len() {
-                                    len = self.data.len() - offset;
-                                }
-                                let data = protocol::data_packet(
-                                    offset,
-                                    &self.data[offset..offset + len].to_vec(),
-                                );
-                                protocol::send_to(&self.socket, src, &data).await;
+                            let mut offset = self.data.len() - protocol::DATA_SIZE * n;
+                            for _ in 0..n {
+                                self.send_one_chunk(src, offset).await;
+                                offset += protocol::DATA_SIZE;
                             }
                         } else {
                             self.send_data_in_chunks(&src, message, amt).await;
