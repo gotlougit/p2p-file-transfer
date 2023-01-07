@@ -3,7 +3,6 @@ use memmap2::Mmap;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
 
@@ -12,14 +11,14 @@ use crate::protocol;
 use crate::protocol::ClientState;
 
 pub struct Server {
-    socket: Arc<UdpSocket>,
+    socket: UdpSocket,
     data: Mmap,
     size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, ClientState>,
     authchecker: auth::AuthChecker,
 }
 
-pub fn init(socket: Arc<UdpSocket>, filename: String, authtoken: String) -> Server {
+pub fn init(socket: UdpSocket, filename: String, authtoken: String) -> Server {
     let fd = OpenOptions::new()
         .read(true)
         .write(false)

@@ -1,7 +1,6 @@
 //define both messages that client and server exchange and the interfaces they will use to do so
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
-use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 use std::time::SystemTime;
@@ -46,7 +45,7 @@ static LASTMSG: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 
 pub const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
 
-pub async fn init_nat_traversal(socket: Arc<UdpSocket>, other_machine: &String) {
+pub async fn init_nat_traversal(socket: &UdpSocket, other_machine: &String) {
     //wait till next minute
 
     let time_to_wait = DIVIDER
@@ -122,7 +121,7 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
     }
 }
 
-pub async fn get_external_and_nat(socket: Arc<UdpSocket>) {
+pub async fn get_external_and_nat(socket: &UdpSocket) {
     let ip1 = get_external_info(&socket, "5.178.34.84:3478".to_string()).await;
     let ip2 = get_external_info(&socket, "stun2.l.google.com:19302".to_string()).await;
     if ip1 == ip2 {

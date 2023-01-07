@@ -4,25 +4,24 @@ use std::collections::HashMap;
 use std::fs::{OpenOptions, remove_file, File};
 use std::io::{stdin, Seek, SeekFrom, Write};
 use std::process::exit;
-use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
 
 use crate::protocol;
 
 pub struct Client {
-    socket: Arc<UdpSocket>,
+    socket: UdpSocket,
     file: File,
     filename: String,
     authtoken: String,
     filesize: usize,
     state: protocol::ClientState,
     counter: usize,
-    packets_recv: HashMap<usize, bool>,
+    packets_left: HashMap<usize, bool>,
     packet_cache: HashMap<usize, Vec<u8>>,
 }
 
-pub fn init(socket: Arc<UdpSocket>, file_to_get: &String, authtoken: &String) -> Client {
+pub fn init(socket: UdpSocket, file_to_get: &String, authtoken: &String) -> Client {
     let fd = OpenOptions::new()
         .read(true)
         .write(true)
@@ -38,7 +37,7 @@ pub fn init(socket: Arc<UdpSocket>, file_to_get: &String, authtoken: &String) ->
         filesize: 0,
         state: protocol::ClientState::NoState,
         counter: 0,
-        packets_recv: HashMap::new(),
+        packets_left: HashMap::new(),
         packet_cache: HashMap::new(),
     };
     client_obj
@@ -142,7 +141,7 @@ impl Client {
                     //setup HashMap to keep track of all received packets
                     let max_packets = self.filesize / protocol::DATA_SIZE + 1;
                     for i in 0..max_packets {
-                        self.packets_recv.insert(protocol::DATA_SIZE * i, false);
+                        self.packets_left.insert(protocol::DATA_SIZE * i, false);
                     }
                     //fix size of file
                     self.file
@@ -166,7 +165,7 @@ impl Client {
             }
             protocol::ClientState::SendFile => {
                 println!("Client has to receive the file");
-                if protocol::parse_end(message, size) && self.packets_recv.is_empty() {
+                if protocol::parse_end(message, size) && self.packets_left.is_empty() {
                     println!("END received...");
                     self.end_connection().await;
                     false
@@ -212,19 +211,19 @@ impl Client {
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
         let (offset, data) = protocol::parse_data_packet(message, size);
-        if self.packets_recv.get(&offset).is_none() {
+        if self.packets_left.get(&offset).is_none() {
             //already been received, assume we already have it inside memory
             println!("Got already received packet");
         } else {
             //get rid of received packet from HashMap
-            self.packets_recv.remove(&offset);
+            self.packets_left.remove(&offset);
             //save to packet_cache
             self.packet_cache.insert(offset, data);
         }
-        println!("Need {} more packets", self.packets_recv.len());
+        println!("Need {} more packets", self.packets_left.len());
         self.counter += 1;
         println!("Received offset {}", offset);
-        if self.packets_recv.is_empty() {
+        if self.packets_left.is_empty() {
             println!("Client received entire file, ending...");
             //client received entire file, end connection
             self.end_connection().await;
