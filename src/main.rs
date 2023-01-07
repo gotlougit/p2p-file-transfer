@@ -53,7 +53,7 @@ async fn serve(filename: &String, authtoken: &String) {
     server_obj.mainloop().await;
 }
 
-async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
+async fn client(file_to_get: &String, authtoken: &String) {
     let interface = "0.0.0.0:0";
     //open socket and start networking!
     let socket = Arc::new(UdpSocket::bind(interface).await.expect("Couldn't connect!"));
@@ -86,7 +86,7 @@ async fn client(file_to_get: &String, filename: &String, authtoken: &String) {
     println!("I am receiving at {}", socket.local_addr().unwrap());
 
     //create Client object and send initial request to server
-    let mut client_obj = client::init(Arc::clone(&socket), file_to_get, filename, authtoken);
+    let mut client_obj = client::init(Arc::clone(&socket), file_to_get, authtoken);
     client_obj.init_connection().await;
     //listen for server responses and deal with them accordingly
     client_obj.mainloop().await;
@@ -108,7 +108,7 @@ async fn main() {
         serve(filename, &auth).await;
     } else if mode == "client" {
         let file_to_get = &args[2];
-        client(file_to_get, file_to_get, &auth).await;
+        client(file_to_get, &auth).await;
     } else {
         eprintln!("Incorrect args entered!");
     }

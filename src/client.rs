@@ -15,7 +15,6 @@ pub struct Client {
     socket: Arc<UdpSocket>,
     file: File,
     filename: String,
-    file_save_as: String,
     authtoken: String,
     filesize: usize,
     state: protocol::ClientState,
@@ -27,21 +26,19 @@ pub struct Client {
 pub fn init(
     socket: Arc<UdpSocket>,
     file_to_get: &String,
-    filename: &String,
     authtoken: &String,
 ) -> Client {
     let fd = fs::OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(filename)
+        .open(file_to_get)
         .unwrap();
 
     let client_obj = Client {
         socket,
         file: fd,
         filename: file_to_get.to_string(),
-        file_save_as: filename.to_string(),
         authtoken: authtoken.to_string(),
         filesize: 0,
         state: protocol::ClientState::NoState,
@@ -168,7 +165,7 @@ impl Client {
                     protocol::send(&self.socket, protocol::NACK.as_ref()).await;
                     println!("Sent NACK");
                     //delete open file
-                    remove_file(&self.file_save_as).expect("Couldn't remove file!");
+                    remove_file(&self.filename).expect("Couldn't remove file!");
                     self.end_connection().await;
                     false
                 }
