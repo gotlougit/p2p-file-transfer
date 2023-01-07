@@ -189,15 +189,16 @@ impl Server {
         if offset >= self.data.len() {
             return;
         }
-        if offset + protocol::DATA_SIZE < self.data.len() {
-            let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
-            //send DATA_SIZE size chunk
-            println!("Sending a chunk...");
-            protocol::send_to(&self.socket, &src, &protocol::data_packet(offset, &packet)).await;
-        } else {
-            let packet =
-                protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
-            protocol::send_to(&self.socket, src, &packet).await;
+        let mut len = protocol::DATA_SIZE;
+        let mut end_afterwards = false;
+        if offset + len > self.data.len() {
+            len = self.data.len() - offset;
+            end_afterwards = true;
+        }
+        println!("Sending a chunk...");
+        let packet = self.data[offset..offset+len].to_vec();
+        protocol::send_to(&self.socket, &src, &protocol::data_packet(offset, &packet)).await;
+        if end_afterwards {
             println!("File sent completely");
             self.end_connection_with_resend(src).await;
         }
