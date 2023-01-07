@@ -171,17 +171,20 @@ pub fn resend_offset(offset: usize) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
-pub fn parse_resend_offset(message: [u8; MTU], amt: usize) -> usize {
+pub fn parse_resend_offset(message: [u8; MTU], amt: usize) -> Option<usize> {
     let req = parse_generic_req(message, amt);
     if req.is_empty() {
         println!("Error! Invalid resend request!");
+        return None;
     }
     reset_n();
     let offset_requested = match req.split("RESEND ").collect::<Vec<&str>>().get(1) {
         Some(x) => x.to_string().parse::<usize>().unwrap(),
-        None => 0,
+        None => {
+            return None;
+        },
     };
-    offset_requested
+    Some(offset_requested)
 }
 
 pub fn parse_resend(message: [u8; MTU], amt: usize) -> bool {
