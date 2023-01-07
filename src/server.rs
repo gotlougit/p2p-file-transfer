@@ -44,7 +44,6 @@ pub fn init(socket: Arc<UdpSocket>, filename: String, authtoken: String) -> Serv
 //one object which spins up tasks depending on what stage the client is at (first connection,
 //deciding to get file, receiving file etc)
 //TODO: have server be able to serve multiple files on demand
-//TODO: have server read file on demand instead of keeping a single file around forever in memory
 impl Server {
     pub async fn mainloop(&mut self) {
         loop {
