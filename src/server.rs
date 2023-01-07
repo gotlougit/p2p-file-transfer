@@ -5,7 +5,6 @@ use std::fs::OpenOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
-use tokio::task;
 use tokio::time::timeout;
 
 use crate::auth;
@@ -216,16 +215,12 @@ impl Server {
             let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
             //send DATA_SIZE size chunk
             println!("Sending a chunk...");
-            let socketcopy = self.socket.clone();
-            let srccopy = src.clone();
-            task::spawn(async move {
-                protocol::send_to(
-                    &socketcopy,
-                    &srccopy,
-                    &protocol::data_packet(offset, &packet),
-                )
-                .await;
-            });
+            protocol::send_to(
+                &self.socket,
+                &src,
+                &protocol::data_packet(offset, &packet),
+            )
+            .await;
         } else {
             let packet =
                 protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
