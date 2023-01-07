@@ -209,6 +209,33 @@ impl Server {
         }
     }
 
+    async fn send_one_chunk(&mut self, src : &SocketAddr, offset : usize) {
+        if offset >= self.data.len() {
+            return;
+        }
+        if offset + protocol::DATA_SIZE < self.data.len() {
+            let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
+            //send DATA_SIZE size chunk
+            println!("Sending a chunk...");
+            let socketcopy = self.socket.clone();
+            let srccopy = src.clone();
+            task::spawn(async move {
+                protocol::send_to(
+                    &socketcopy,
+                    &srccopy,
+                    &protocol::data_packet(offset, &packet),
+                )
+                .await;
+            });
+        } else {
+            let packet =
+                protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
+            protocol::send_to(&self.socket, src, &packet).await;
+            println!("File sent completely");
+            self.end_connection_with_resend(src).await;
+        }
+    }
+
     async fn send_data_in_chunks(
         &mut self,
         src: &SocketAddr,
@@ -226,31 +253,10 @@ impl Server {
             return;
         }
         //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
-        for _ in 0..protocol::read_n() {
-            if offset + protocol::DATA_SIZE < self.data.len() {
-                let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
-                //send DATA_SIZE size chunk
-                println!("Sending a chunk...");
-                let socketcopy = self.socket.clone();
-                let srccopy = src.clone();
-                task::spawn(async move {
-                    protocol::send_to(
-                        &socketcopy,
-                        &srccopy,
-                        &protocol::data_packet(offset, &packet),
-                    )
-                    .await;
-                });
-                //protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
-                offset += protocol::DATA_SIZE;
-            } else {
-                let packet =
-                    protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
-                protocol::send_to(&self.socket, src, &packet).await;
-                println!("File sent completely");
-                self.end_connection_with_resend(src).await;
-                break;
-            }
+        let n = protocol::read_n();
+        for _ in 0..n {
+            self.send_one_chunk(src, offset).await;
+            offset += protocol::DATA_SIZE;
         }
     }
 }
