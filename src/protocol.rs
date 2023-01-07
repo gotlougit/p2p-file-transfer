@@ -182,7 +182,7 @@ pub fn parse_resend_offset(message: [u8; MTU], amt: usize) -> Option<usize> {
         Some(x) => x.to_string().parse::<usize>().unwrap(),
         None => {
             return None;
-        },
+        }
     };
     Some(offset_requested)
 }

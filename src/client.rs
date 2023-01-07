@@ -23,11 +23,7 @@ pub struct Client {
     packet_cache: HashMap<usize, Vec<u8>>,
 }
 
-pub fn init(
-    socket: Arc<UdpSocket>,
-    file_to_get: &String,
-    authtoken: &String,
-) -> Client {
+pub fn init(socket: Arc<UdpSocket>, file_to_get: &String, authtoken: &String) -> Client {
     let fd = fs::OpenOptions::new()
         .read(true)
         .write(true)

@@ -207,7 +207,7 @@ impl Server {
         }
     }
 
-    async fn send_one_chunk(&mut self, src : &SocketAddr, offset : usize) {
+    async fn send_one_chunk(&mut self, src: &SocketAddr, offset: usize) {
         if offset >= self.data.len() {
             return;
         }
@@ -215,12 +215,7 @@ impl Server {
             let packet = self.data[offset..offset + protocol::DATA_SIZE].to_vec();
             //send DATA_SIZE size chunk
             println!("Sending a chunk...");
-            protocol::send_to(
-                &self.socket,
-                &src,
-                &protocol::data_packet(offset, &packet),
-            )
-            .await;
+            protocol::send_to(&self.socket, &src, &protocol::data_packet(offset, &packet)).await;
         } else {
             let packet =
                 protocol::data_packet(offset, &self.data[offset..self.data.len()].to_vec());
