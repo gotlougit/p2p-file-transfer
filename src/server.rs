@@ -16,7 +16,6 @@ pub struct Server {
     socket: Arc<UdpSocket>,
     data: Mmap,
     size_msg: Vec<u8>,
-    dummy_size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, ClientState>,
     authchecker: auth::AuthChecker,
 }
@@ -35,7 +34,6 @@ pub fn init(socket: Arc<UdpSocket>, filename: String, authtoken: String) -> Serv
             socket,
             data: mmap,
             size_msg: protocol::filesize_packet(filesize),
-            dummy_size_msg: protocol::filesize_packet(0),
             src_state_map: HashMap::new(),
             authchecker: auth::init(authtoken, filename),
         };
@@ -184,7 +182,7 @@ impl Server {
             //send dummy message as client failed to authenticate
             println!("Client was not able to be authenticated!");
             println!("Sending 0 size file...");
-            protocol::send_to(&self.socket, src, &self.dummy_size_msg).await;
+            protocol::send_to(&self.socket, src, &protocol::filesize_packet(0)).await;
             //end connection
             self.end_connection(src).await;
         }
