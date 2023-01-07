@@ -1,6 +1,5 @@
 //implements client object which is capable of handling one file from one server
 use memmap2::MmapMut;
-use tokio::time::timeout;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::{remove_file, File};
@@ -8,6 +7,7 @@ use std::io::{stdin, Seek, SeekFrom, Write};
 use std::process::exit;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
+use tokio::time::timeout;
 
 use crate::protocol;
 
@@ -21,7 +21,7 @@ pub struct Client {
     state: protocol::ClientState,
     counter: usize,
     packets_recv: HashMap<usize, bool>,
-    packet_cache: HashMap<usize, Vec<u8>>
+    packet_cache: HashMap<usize, Vec<u8>>,
 }
 
 pub fn init(
@@ -47,7 +47,7 @@ pub fn init(
         state: protocol::ClientState::NoState,
         counter: 0,
         packets_recv: HashMap::new(),
-        packet_cache : HashMap::new()
+        packet_cache: HashMap::new(),
     };
     client_obj
 }
@@ -75,17 +75,18 @@ impl Client {
             }
 
             let mut buf = [0u8; protocol::MTU];
-            if let Ok((amt, _)) =
-                timeout(protocol::MAX_WAIT_TIME, protocol::recv(&self.socket, &mut buf)).await
+            if let Ok((amt, _)) = timeout(
+                protocol::MAX_WAIT_TIME,
+                protocol::recv(&self.socket, &mut buf),
+            )
+            .await
             {
                 if protocol::parse_resend(buf, amt) {
                     protocol::resend(&self.socket).await;
                     continue;
                 }
                 //make sure program exits gracefully
-                let continue_with_loop = self
-                    .process_msg(buf, amt)
-                    .await;
+                let continue_with_loop = self.process_msg(buf, amt).await;
                 if !continue_with_loop {
                     println!("Client exiting...");
                     break;
@@ -121,11 +122,7 @@ impl Client {
     }
 
     //pass message received here to determine what to do; action will be taken asynchronously
-    async fn process_msg(
-        &mut self,
-        message: [u8; protocol::MTU],
-        size: usize,
-    ) -> bool {
+    async fn process_msg(&mut self, message: [u8; protocol::MTU], size: usize) -> bool {
         if size == 0 {
             //maybe new connection
             match self.state {
@@ -248,11 +245,7 @@ impl Client {
                 self.counter = 0;
                 //write to file in batches only
                 let last = self.write_to_file();
-                protocol::send(
-                    &self.socket,
-                    &protocol::last_received_packet(last),
-                )
-                .await;
+                protocol::send(&self.socket, &protocol::last_received_packet(last)).await;
             }
         }
     }

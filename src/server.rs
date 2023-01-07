@@ -1,12 +1,12 @@
 //implements server object which is capable of handling multiple clients at once
-use std::collections::HashMap;
-use tokio::time::timeout;
 use memmap2::Mmap;
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::task;
+use tokio::time::timeout;
 
 use crate::auth;
 use crate::protocol;
@@ -21,11 +21,7 @@ pub struct Server {
     authchecker: auth::AuthChecker,
 }
 
-pub fn init(
-    socket: Arc<UdpSocket>,
-    filename: String,
-    authtoken: String,
-) -> Server {
+pub fn init(socket: Arc<UdpSocket>, filename: String, authtoken: String) -> Server {
     let fd = OpenOptions::new()
         .read(true)
         .write(false)
@@ -52,20 +48,20 @@ pub fn init(
 //TODO: have server be able to serve multiple files on demand
 //TODO: have server read file on demand instead of keeping a single file around forever in memory
 impl Server {
-
     pub async fn mainloop(&mut self) {
         loop {
             let mut buf = [0u8; protocol::MTU];
-            if let Ok((amt, src)) =
-                timeout(protocol::MAX_WAIT_TIME, protocol::recv(&self.socket, &mut buf)).await
+            if let Ok((amt, src)) = timeout(
+                protocol::MAX_WAIT_TIME,
+                protocol::recv(&self.socket, &mut buf),
+            )
+            .await
             {
                 if protocol::parse_resend(buf, amt) {
                     println!("Need to resend!");
                     protocol::resend(&self.socket).await;
                 } else {
-                    self
-                        .process_msg(&src, buf, amt)
-                        .await;
+                    self.process_msg(&src, buf, amt).await;
                 }
             } else {
                 println!("Timeout occurred, asking all clients to resend!");
@@ -76,28 +72,20 @@ impl Server {
     }
 
     //pass message received here to determine what to do; action will be taken asynchronously
-    async fn process_msg(
-        &mut self,
-        src: &SocketAddr,
-        message: [u8; protocol::MTU],
-        amt: usize,
-    ) {
+    async fn process_msg(&mut self, src: &SocketAddr, message: [u8; protocol::MTU], amt: usize) {
         if self.src_state_map.contains_key(src) {
             println!("Found prev connection, checking state and handling corresponding call..");
             if protocol::parse_resend(message, amt) {
                 println!("Client may not have received last part of file! Sending last chunk...");
                 let n = protocol::read_n();
                 for i in 0..n {
-                    let offset: usize = self.data.len()
-                        - protocol::DATA_SIZE * (n - i);
+                    let offset: usize = self.data.len() - protocol::DATA_SIZE * (n - i);
                     let mut len: usize = protocol::DATA_SIZE;
                     if offset + len > self.data.len() {
                         len = self.data.len() - offset;
                     }
-                    let data = protocol::data_packet(
-                        offset,
-                        &self.data[offset..offset + len].to_vec(),
-                    );
+                    let data =
+                        protocol::data_packet(offset, &self.data[offset..offset + len].to_vec());
                     protocol::send_to(&self.socket, src, &data).await;
                 }
             }
@@ -105,19 +93,13 @@ impl Server {
             if let Some(curstate) = self.src_state_map.get(src) {
                 match curstate {
                     ClientState::NoState => {
-                        self
-                            .initiate_transfer_server(&src, message, amt)
-                            .await;
+                        self.initiate_transfer_server(&src, message, amt).await;
                     }
                     ClientState::ACKorNACK => {
-                        self
-                            .check_ack_or_nack(&src, message, amt)
-                            .await;
+                        self.check_ack_or_nack(&src, message, amt).await;
                     }
                     ClientState::SendFile => {
-                        self
-                            .send_data_in_chunks(&src, message, amt)
-                            .await;
+                        self.send_data_in_chunks(&src, message, amt).await;
                     }
                     ClientState::EndConn => {
                         //don't make a new thread for this
@@ -136,8 +118,7 @@ impl Server {
                             println!("Client may not have received last part of file! Sending last chunk...");
                             let n = protocol::read_n();
                             for i in 0..n {
-                                let offset: usize = self.data.len()
-                                    - protocol::DATA_SIZE * (n - i);
+                                let offset: usize = self.data.len() - protocol::DATA_SIZE * (n - i);
                                 let mut len: usize = protocol::DATA_SIZE;
                                 if offset + len > self.data.len() {
                                     len = self.data.len() - offset;
@@ -149,9 +130,7 @@ impl Server {
                                 protocol::send_to(&self.socket, src, &data).await;
                             }
                         } else {
-                            self
-                                .send_data_in_chunks(&src, message, amt)
-                                .await;
+                            self.send_data_in_chunks(&src, message, amt).await;
                         }
                     }
                 }
@@ -257,7 +236,12 @@ impl Server {
                 let socketcopy = self.socket.clone();
                 let srccopy = src.clone();
                 task::spawn(async move {
-                    protocol::send_to(&socketcopy, &srccopy, &protocol::data_packet(offset, &packet)).await;
+                    protocol::send_to(
+                        &socketcopy,
+                        &srccopy,
+                        &protocol::data_packet(offset, &packet),
+                    )
+                    .await;
                 });
                 //protocol::send_to(&self.socket, src, &protocol::data_packet(offset, &packet)).await;
                 offset += protocol::DATA_SIZE;
