@@ -1,8 +1,7 @@
 //implements client object which is capable of handling one file from one server
 use memmap2::MmapMut;
 use std::collections::HashMap;
-use std::fs;
-use std::fs::{remove_file, File};
+use std::fs::{OpenOptions, remove_file, File};
 use std::io::{stdin, Seek, SeekFrom, Write};
 use std::process::exit;
 use std::sync::Arc;
@@ -24,7 +23,7 @@ pub struct Client {
 }
 
 pub fn init(socket: Arc<UdpSocket>, file_to_get: &String, authtoken: &String) -> Client {
-    let fd = fs::OpenOptions::new()
+    let fd = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
