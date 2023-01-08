@@ -287,7 +287,7 @@ pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
 }
 
 //get the required data from the data packet
-pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
+pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> Option<(usize, Vec<u8>)> {
     let mut sizeofheader = 0;
     for i in 0..amt {
         if message[i] == 10 {
@@ -297,17 +297,20 @@ pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> (usize, Vec<u8>) {
     }
     let req = parse_generic_req(message, sizeofheader);
     if req.is_empty() {
-        let emptyvector: Vec<u8> = Vec::new();
-        return (0, emptyvector);
+        return None;
     }
     let offset = match req.split("OFFSET: ").collect::<Vec<&str>>().get(1) {
         Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
             Some(y) => y.to_string().parse::<usize>().unwrap(),
-            None => 0,
+            None => {
+                return None;
+            },
         },
-        None => 0,
+        None => {
+            return None;
+        },
     };
-    (offset, message[sizeofheader..amt].to_vec())
+    Some((offset, message[sizeofheader..amt].to_vec()))
 }
 
 pub async fn ask_for_resend(socket: &UdpSocket, src: &SocketAddr) {

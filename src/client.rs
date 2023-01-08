@@ -149,6 +149,7 @@ impl Client {
                         .unwrap();
                     self.file.write_all(&[0]).unwrap();
                     self.file.seek(SeekFrom::Start(0)).unwrap();
+
                     println!("Sending ACK");
                     protocol::send(&self.socket, protocol::ACK.as_ref()).await;
                     self.state = protocol::ClientState::SendFile;
@@ -210,7 +211,7 @@ impl Client {
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
-        let (offset, data) = protocol::parse_data_packet(message, size);
+        let (offset, data) = protocol::parse_data_packet(message, size).expect("Incorrect data packet!");
         if self.packets_left.get(&offset).is_none() {
             //already been received, assume we already have it inside memory
             println!("Got already received packet");
@@ -231,7 +232,8 @@ impl Client {
             //keep track of whether we received all PROTOCOL_N packets or not
             //send request for next packet only if this is PROTOCOL_Nth packet
             //else server will automatically assume to resend packets
-            if self.counter != 0 && self.counter % protocol::read_n() == 0 {
+            let n = protocol::read_n();
+            if self.counter != 0 && self.counter % n == 0 {
                 self.counter = 0;
                 //write to file in batches only
                 let last = self.write_to_file();
