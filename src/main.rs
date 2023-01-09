@@ -13,8 +13,8 @@ async fn serve(filename: &String, authtoken: &String) {
 
     //open socket and start networking!
     let socket = UdpSocket::bind(interface)
-            .await
-            .expect("Couldn't bind to specified port!");
+        .await
+        .expect("Couldn't bind to specified port!");
 
     //NAT traversal
 
@@ -40,11 +40,7 @@ async fn serve(filename: &String, authtoken: &String) {
     println!("I am serving locally at {}", socket.local_addr().unwrap());
 
     //construct Server object
-    let mut server_obj = server::init(
-        socket,
-        filename.to_string(),
-        authtoken.to_string(),
-    );
+    let mut server_obj = server::init(socket, filename.to_string(), authtoken.to_string());
 
     //main loop which listens for connections and serves data depending on stage
     server_obj.mainloop().await;

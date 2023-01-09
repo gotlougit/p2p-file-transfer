@@ -1,7 +1,7 @@
 //implements client object which is capable of handling one file from one server
 use memmap2::MmapMut;
 use std::collections::HashMap;
-use std::fs::{OpenOptions, remove_file, File};
+use std::fs::{remove_file, File, OpenOptions};
 use std::io::{stdin, Seek, SeekFrom, Write};
 use std::process::exit;
 use tokio::net::UdpSocket;
@@ -211,7 +211,8 @@ impl Client {
     }
 
     async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
-        let (offset, data) = protocol::parse_data_packet(message, size).expect("Incorrect data packet!");
+        let (offset, data) =
+            protocol::parse_data_packet(message, size).expect("Incorrect data packet!");
         if self.packets_left.get(&offset).is_none() {
             //already been received, assume we already have it inside memory
             println!("Got already received packet");
