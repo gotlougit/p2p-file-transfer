@@ -74,6 +74,10 @@ impl Client {
                     self.connection.resend_to(&self.server).await;
                     continue;
                 }
+                if src != self.server {
+                    error!("Client received from unknown IP! {}", src);
+                    continue;
+                }
                 //proceed normally
                 let continue_with_loop = self.process_msg(buffer, amt).await;
                 if !continue_with_loop {
@@ -150,6 +154,8 @@ impl Client {
                             .send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::ACK))
                             .await;
                         self.state = ClientState::SendFile;
+                        //send request for first offset
+                        self.connection.send_to(&self.server, &parsing::last_received_packet(0)).await;
                         return true;
                     } else {
                         info!("Stopping transfer");
