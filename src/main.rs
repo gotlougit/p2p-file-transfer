@@ -13,7 +13,6 @@ mod server;
 
 //TODO: create control plane which will replace calling STUN servers
 async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
-    info!("Internal IP:port is {}", socket.local_addr().unwrap());
     let stun_addr = ip
         .to_socket_addrs()
         .unwrap()
@@ -35,6 +34,7 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
 }
 
 async fn get_external_and_nat(socket: &UdpSocket) {
+    info!("Internal IP:port is {}", socket.local_addr().unwrap());
     let ip1 = get_external_info(&socket, "5.178.34.84:3478".to_string()).await;
     let ip2 = get_external_info(&socket, "stun2.l.google.com:19302".to_string()).await;
     if ip1 == ip2 {
