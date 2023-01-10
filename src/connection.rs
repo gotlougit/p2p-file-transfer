@@ -161,7 +161,7 @@ impl Connection {
     }
 
     //resend last messages
-    async fn resend_to(&mut self, ip: &SocketAddr) {
+    pub async fn resend_to(&mut self, ip: &SocketAddr) {
         debug!("Resending to IP {}", ip);
         if let Some(messages) = self.lastmsg.get(ip) {
             for msg in messages {
