@@ -3,8 +3,6 @@ use log::debug;
 use log::error;
 use std::str;
 
-use crate::protocol::MTU;
-
 //use this instead of comparing raw bytes every time
 #[derive(PartialEq)]
 pub enum PrimitiveMessage {
@@ -22,7 +20,7 @@ const RESEND: [u8; 6] = *b"RESEND";
 const END: [u8; 3] = *b"END";
 
 //get the plaintext parts of packet out into a String if possible
-fn parse_generic_req(message: [u8; MTU], amt: usize) -> Option<String> {
+fn parse_generic_req(message: &[u8], amt: usize) -> Option<String> {
     let req = match str::from_utf8(&message[..amt]) {
         Ok(x) => x.to_string(),
         Err(_) => {
@@ -60,7 +58,7 @@ pub fn get_primitive(msgtype: PrimitiveMessage) -> Vec<u8> {
 }
 
 //get primitive message type
-pub fn parse_primitive(message: [u8; MTU], amt: usize) -> PrimitiveMessage {
+pub fn parse_primitive(message: &[u8], amt: usize) -> PrimitiveMessage {
     match amt {
         3 => {
             if message[..3] == ACK {
@@ -99,7 +97,7 @@ pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
     r.as_bytes().to_vec()
 }
 
-pub fn parse_send_req(message: [u8; MTU], amt: usize) -> Option<(String, String)> {
+pub fn parse_send_req(message: &[u8], amt: usize) -> Option<(String, String)> {
     let Some(req) = parse_generic_req(message, amt);
 
     let file_requested = match req.split("GET ").collect::<Vec<&str>>().get(1) {
@@ -134,7 +132,7 @@ pub fn filesize_packet(filesize: usize) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
-pub fn parse_filesize_packet(message: [u8; MTU], amt: usize) -> Option<usize> {
+pub fn parse_filesize_packet(message: &[u8], amt: usize) -> Option<usize> {
     let Some(req) = parse_generic_req(message, amt);
     let size = match req.split("SIZE ").collect::<Vec<&str>>().get(1) {
         Some(x) => x.to_string().parse::<usize>().unwrap(),
@@ -156,7 +154,7 @@ pub fn last_received_packet(num: usize) -> Vec<u8> {
     s.as_bytes().to_vec()
 }
 
-pub fn parse_last_received(message: [u8; MTU], amt: usize) -> Option<usize> {
+pub fn parse_last_received(message: &[u8], amt: usize) -> Option<usize> {
     if parse_primitive(message, amt) == PrimitiveMessage::ACK {
         return None;
     }
@@ -181,7 +179,7 @@ pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
     b1
 }
 
-pub fn parse_data_packet(message: [u8; MTU], amt: usize) -> Option<(usize, Vec<u8>)> {
+pub fn parse_data_packet(message: &[u8], amt: usize) -> Option<(usize, Vec<u8>)> {
     let mut sizeofheader = 0;
     for i in 0..amt {
         if message[i] == 10 {
