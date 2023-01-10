@@ -106,31 +106,32 @@ pub fn send_req(filename: &String, auth: &String) -> Vec<u8> {
 }
 
 pub fn parse_send_req(message: &[u8], amt: usize) -> Option<(String, String)> {
-    let Some(req) = parse_generic_req(message, amt);
+    if let Some(req) = parse_generic_req(message, amt) {
+        let file_requested = match req.split("GET ").collect::<Vec<&str>>().get(1) {
+            Some(x) => x.to_string(),
+            None => {
+                error!("File request parsed unsuccessfully");
+                return None;
+            }
+        };
 
-    let file_requested = match req.split("GET ").collect::<Vec<&str>>().get(1) {
-        Some(x) => x.to_string(),
-        None => {
-            error!("File request parsed unsuccessfully");
-            return None;
-        }
-    };
-
-    let giventoken = match req.split("AUTH ").collect::<Vec<&str>>().get(1) {
-        Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
-            Some(y) => y.to_string(),
+        let giventoken = match req.split("AUTH ").collect::<Vec<&str>>().get(1) {
+            Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
+                Some(y) => y.to_string(),
+                None => {
+                    error!("Token parse error");
+                    return None;
+                }
+            },
             None => {
                 error!("Token parse error");
                 return None;
             }
-        },
-        None => {
-            error!("Token parse error");
-            return None;
-        }
-    };
-    debug!("Parsed send request");
-    Some((file_requested, giventoken))
+        };
+        debug!("Parsed send request");
+        return Some((file_requested, giventoken));
+    }
+    None
 }
 
 //server then sends filesize if everything checked out
@@ -141,16 +142,18 @@ pub fn filesize_packet(filesize: usize) -> Vec<u8> {
 }
 
 pub fn parse_filesize_packet(message: &[u8], amt: usize) -> Option<usize> {
-    let Some(req) = parse_generic_req(message, amt);
-    let size = match req.split("SIZE ").collect::<Vec<&str>>().get(1) {
-        Some(x) => x.to_string().parse::<usize>().unwrap(),
-        None => {
-            error!("Filesize parse error");
-            return None;
-        }
-    };
-    debug!("Parsed filesize packet");
-    Some(size)
+    if let Some(req) = parse_generic_req(message, amt) {
+        let size = match req.split("SIZE ").collect::<Vec<&str>>().get(1) {
+            Some(x) => x.to_string().parse::<usize>().unwrap(),
+            None => {
+                error!("Filesize parse error");
+                return None;
+            }
+        };
+        debug!("Parsed filesize packet");
+        return Some(size);
+    }
+    None
 }
 
 //here client will tell server if it wants the file or not
@@ -166,16 +169,18 @@ pub fn parse_last_received(message: &[u8], amt: usize) -> Option<usize> {
     if parse_primitive(message, amt) == PrimitiveMessage::ACK {
         return None;
     }
-    let Some(req) = parse_generic_req(message, amt);
-    let lastrecv = match req.split("LAST ").collect::<Vec<&str>>().get(1) {
-        Some(x) => x.to_string().parse::<usize>().unwrap(),
-        None => {
-            error!("Last receive parse error");
-            return None;
-        }
-    };
-    debug!("Parsed last received packet");
-    Some(lastrecv)
+    if let Some(req) = parse_generic_req(message, amt) {
+        let lastrecv = match req.split("LAST ").collect::<Vec<&str>>().get(1) {
+            Some(x) => x.to_string().parse::<usize>().unwrap(),
+            None => {
+                error!("Last receive parse error");
+                return None;
+            }
+        };
+        debug!("Parsed last received packet");
+        return Some(lastrecv);
+    }
+    None
 }
 
 //data packet is basically a small header and some amount of payload
@@ -195,22 +200,24 @@ pub fn parse_data_packet(message: &[u8], amt: usize) -> Option<(usize, Vec<u8>)>
             break;
         }
     }
-    let Some(req) = parse_generic_req(message, sizeofheader);
-    let offset = match req.split("OFFSET: ").collect::<Vec<&str>>().get(1) {
-        Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
-            Some(y) => y.to_string().parse::<usize>().unwrap(),
+    if let Some(req) = parse_generic_req(message, sizeofheader) {
+        let offset = match req.split("OFFSET: ").collect::<Vec<&str>>().get(1) {
+            Some(x) => match x.to_string().split('\n').collect::<Vec<&str>>().first() {
+                Some(y) => y.to_string().parse::<usize>().unwrap(),
+                None => {
+                    error!("Offset parse error");
+                    return None;
+                }
+            },
             None => {
                 error!("Offset parse error");
                 return None;
             }
-        },
-        None => {
-            error!("Offset parse error");
-            return None;
-        }
-    };
-    debug!("Parsed data packet");
-    Some((offset, message[sizeofheader..amt].to_vec()))
+        };
+        debug!("Parsed data packet");
+        return Some((offset, message[sizeofheader..amt].to_vec()));
+    }
+    None
 }
 
 pub fn resend_offset(offset: usize) -> Vec<u8> {
@@ -219,13 +226,15 @@ pub fn resend_offset(offset: usize) -> Vec<u8> {
 }
 
 pub fn parse_resend_offset(message: &[u8], amt: usize) -> Option<usize> {
-    let Some(req) = parse_generic_req(message, amt);
-    let offset_requested = match req.split("RESEND ").collect::<Vec<&str>>().get(1) {
-        Some(x) => x.to_string().parse::<usize>().unwrap(),
-        None => {
-            error!("Resend offset parse error!");
-            return None;
-        }
-    };
-    Some(offset_requested)
+    if let Some(req) = parse_generic_req(message, amt) {
+        let offset_requested = match req.split("RESEND ").collect::<Vec<&str>>().get(1) {
+            Some(x) => x.to_string().parse::<usize>().unwrap(),
+            None => {
+                error!("Resend offset parse error!");
+                return None;
+            }
+        };
+        return Some(offset_requested);
+    }
+    None
 }

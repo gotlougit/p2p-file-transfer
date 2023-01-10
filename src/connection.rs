@@ -174,10 +174,9 @@ impl Connection {
 
     async fn ask_resend_from_all(&mut self) {
         warn!("Asking for resend from all IPs connected");
-        if let ipaddrs = self.get_ip_connected() {
-            for ip in ipaddrs {
-                self.resend_to(&ip);
-            }
+        let ipaddrs = self.get_ip_connected();
+        for ip in ipaddrs {
+            self.resend_to(&ip).await;
         }
     }
 
@@ -196,7 +195,7 @@ impl Connection {
             Some((amt, src))
         } else {
             warn!("Timeout occurred, asking for resend");
-            self.ask_resend_from_all();
+            self.ask_resend_from_all().await;
             None
         }
     }

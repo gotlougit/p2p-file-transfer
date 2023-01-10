@@ -18,25 +18,27 @@ pub fn init(valid_token: String, valid_file: String) -> AuthChecker {
 
 impl AuthChecker {
     pub fn is_valid_request(&self, request_body: &[u8], amt: usize) -> bool {
-        let Some((file_requested, giventoken)) = parsing::parse_send_req(request_body, amt);
-        if file_requested.is_empty() || giventoken.is_empty() {
-            return false;
+        if let Some((file_requested, giventoken)) = parsing::parse_send_req(request_body, amt) {
+            if file_requested.is_empty() || giventoken.is_empty() {
+                return false;
+            }
+            let mut does_file_exist = false;
+            if self
+                .valid_files
+                .iter()
+                .any(|file| file == &file_requested[..file.len()])
+            {
+                does_file_exist = true;
+            }
+            if !does_file_exist {
+                return false;
+            }
+            let mut is_token_allowed = false;
+            if self.valid_tokens.iter().any(|token| token == &giventoken) {
+                is_token_allowed = true;
+            }
+            return is_token_allowed;
         }
-        let mut does_file_exist = false;
-        if self
-            .valid_files
-            .iter()
-            .any(|file| file == &file_requested[..file.len()])
-        {
-            does_file_exist = true;
-        }
-        if !does_file_exist {
-            return false;
-        }
-        let mut is_token_allowed = false;
-        if self.valid_tokens.iter().any(|token| token == &giventoken) {
-            is_token_allowed = true;
-        }
-        is_token_allowed
+        false
     }
 }

@@ -66,7 +66,7 @@ impl Client {
                 //server wants client to resend
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Server asked for resend!");
-                    self.connection.resend_to(&self.server);
+                    self.connection.resend_to(&self.server).await;
                     continue;
                 }
                 //proceed normally
@@ -123,35 +123,38 @@ impl Client {
             }
             ClientState::ACKorNACK => {
                 //ask user whether they want the file or not
-                Some(self.filesize) = parsing::parse_filesize_packet(&message[..], size);
-                let decision = self.get_user_decision();
-                //send ACK/NACK
-                if decision {
-                    //setup HashMap to keep track of all received packets
-                    let max_packets = self.filesize / connection::DATA_SIZE + 1;
-                    for i in 0..max_packets {
-                        self.packets_left.insert(connection::DATA_SIZE * i, false);
-                    }
-                    //fix size of file
-                    self.file
-                        .seek(SeekFrom::Start(self.filesize as u64 - 1))
-                        .unwrap();
-                    self.file.write_all(&[0]).unwrap();
-                    self.file.seek(SeekFrom::Start(0)).unwrap();
+                if let Some(fz) = parsing::parse_filesize_packet(&message[..], size) {
+                    self.filesize = fz;
+                    let decision = self.get_user_decision();
+                    //send ACK/NACK
+                    if decision {
+                        //setup HashMap to keep track of all received packets
+                        let max_packets = self.filesize / connection::DATA_SIZE + 1;
+                        for i in 0..max_packets {
+                            self.packets_left.insert(connection::DATA_SIZE * i, false);
+                        }
+                        //fix size of file
+                        self.file
+                            .seek(SeekFrom::Start(self.filesize as u64 - 1))
+                            .unwrap();
+                        self.file.write_all(&[0]).unwrap();
+                        self.file.seek(SeekFrom::Start(0)).unwrap();
 
-                    debug!("Sending ACK");
-                    self.connection.send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::ACK)).await;
-                    self.state = ClientState::SendFile;
-                    true
-                } else {
-                    info!("Stopping transfer");
-                    self.connection.send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::NACK)).await;
-                    debug!("Sent NACK");
-                    //delete open file
-                    remove_file(&self.filename).expect("Couldn't remove file!");
-                    self.end_connection().await;
-                    false
+                        debug!("Sending ACK");
+                        self.connection.send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::ACK)).await;
+                        self.state = ClientState::SendFile;
+                        return true;
+                    } else {
+                        info!("Stopping transfer");
+                        self.connection.send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::NACK)).await;
+                        debug!("Sent NACK");
+                        //delete open file
+                        remove_file(&self.filename).expect("Couldn't remove file!");
+                        self.end_connection().await;
+                        return false;
+                    }
                 }
+                false
             }
             ClientState::SendFile => {
                 println!("Client has to receive the file");
@@ -201,34 +204,36 @@ impl Client {
     }
 
     async fn save_data_to_file(&mut self, message: [u8; connection::MTU], size: usize) {
-        let Some((offset, data)) =
-            parsing::parse_data_packet(&message[..], size);
-        if self.packets_left.get(&offset).is_none() {
-            //already been received, assume we already have it inside memory
-            println!("Got already received packet");
-        } else {
-            //get rid of received packet from HashMap
-            self.packets_left.remove(&offset);
-            //save to packet_cache
-            self.packet_cache.insert(offset, data);
-        }
-        info!("Need {} more packets", self.packets_left.len());
-        self.counter += 1;
-        debug!("Received offset {}", offset);
-        if self.packets_left.is_empty() {
-            info!("Client received entire file, ending...");
-            //client received entire file, end connection
-            self.end_connection().await;
-        } else {
-            //keep track of whether we received all PROTOCOL_N packets or not
-            //send request for next packet only if this is PROTOCOL_Nth packet
-            //else server will automatically assume to resend packets
-            let n = self.connection.read_n(&self.server);
-            if self.counter != 0 && self.counter % n == 0 {
-                self.counter = 0;
-                //write to file in batches only
-                let last = self.write_to_file();
-                self.connection.send_to(&self.server, &parsing::last_received_packet(last)).await;
+        if let Some((offset, data)) =
+            parsing::parse_data_packet(&message[..], size) {
+
+            if self.packets_left.get(&offset).is_none() {
+                //already been received, assume we already have it inside memory
+                println!("Got already received packet");
+            } else {
+                //get rid of received packet from HashMap
+                self.packets_left.remove(&offset);
+                //save to packet_cache
+                self.packet_cache.insert(offset, data);
+            }
+            info!("Need {} more packets", self.packets_left.len());
+            self.counter += 1;
+            debug!("Received offset {}", offset);
+            if self.packets_left.is_empty() {
+                info!("Client received entire file, ending...");
+                //client received entire file, end connection
+                self.end_connection().await;
+            } else {
+                //keep track of whether we received all PROTOCOL_N packets or not
+                //send request for next packet only if this is PROTOCOL_Nth packet
+                //else server will automatically assume to resend packets
+                let n = self.connection.read_n(&self.server);
+                if self.counter != 0 && self.counter % n == 0 {
+                    self.counter = 0;
+                    //write to file in batches only
+                    let last = self.write_to_file();
+                    self.connection.send_to(&self.server, &parsing::last_received_packet(last)).await;
+                }
             }
         }
     }

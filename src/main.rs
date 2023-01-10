@@ -1,11 +1,68 @@
+use log::{debug, error, info, warn};
 use std::env;
 use std::io;
+use std::net::{SocketAddr, ToSocketAddrs};
+use stunclient::StunClient;
 use tokio::net::UdpSocket;
 
 mod auth;
 mod client;
-mod protocol;
+mod connection;
+mod parsing;
 mod server;
+
+//TODO: create control plane which will replace calling STUN servers
+async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
+    info!("Internal IP:port is {}", socket.local_addr().unwrap());
+    let stun_addr = ip
+        .to_socket_addrs()
+        .unwrap()
+        .filter(|x| x.is_ipv4())
+        .next()
+        .unwrap();
+    let c = StunClient::new(stun_addr);
+    let f = c.query_external_address_async(socket).await;
+    match f {
+        Ok(x) => {
+            info!("Program is externally at: {}", x);
+            x
+        }
+        Err(_) => {
+            error!("Error at protocol.rs: STUN");
+            socket.local_addr().unwrap()
+        }
+    }
+}
+
+async fn get_external_and_nat(socket: &UdpSocket) {
+    let ip1 = get_external_info(&socket, "5.178.34.84:3478".to_string()).await;
+    let ip2 = get_external_info(&socket, "stun2.l.google.com:19302".to_string()).await;
+    if ip1 == ip2 {
+        info!("NAT is easy, can transfer files easily");
+    } else {
+        warn!("NAT is hard! Cannot transfer files over hard NAT!");
+    }
+}
+
+fn get_other_ip(message : String) -> SocketAddr {
+    //get client's external IP and port
+    //TODO: add control plane which will automate this to support multiple clients
+    println!("{}", message);
+    let stdin = io::stdin();
+    let mut other_interface = String::new();
+    stdin
+        .read_line(&mut other_interface)
+        .expect("Couldn't read from stdin");
+    let other_int = other_interface[..other_interface.len() - 1].to_string();
+    let om = &other_int
+        .to_string()
+        .to_socket_addrs()
+        .unwrap()
+        .filter(|x| x.is_ipv4())
+        .next()
+        .unwrap();
+    *om
+}
 
 async fn serve(filename: &String, authtoken: &String) {
     //get random port from OS to serve on
@@ -19,28 +76,19 @@ async fn serve(filename: &String, authtoken: &String) {
     //NAT traversal
 
     //get our external IP and port
-    protocol::get_external_and_nat(&socket).await;
+    get_external_and_nat(&socket).await;
 
     //get client's external IP and port
-    //TODO: add control plane which will automate this to support multiple clients
-    println!("Enter client IP info: ");
-    let stdin = io::stdin();
-    let mut client_interface = String::new();
-    stdin
-        .read_line(&mut client_interface)
-        .expect("Couldn't read from stdin");
+    let client_int = get_other_ip("Enter client IP:".to_string());
 
-    //remove \n from input
-    let client_int = client_interface[..client_interface.len() - 1].to_string();
+    let connection = connection::init_conn(socket);
 
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
-    protocol::init_nat_traversal(&socket, &client_int).await;
-
-    //print to screen what port we're using here just in case
-    println!("I am serving locally at {}", socket.local_addr().unwrap());
+    connection.sync_nat_traversal();
+    connection.init_nat_traversal(&client_int).await;
 
     //construct Server object
-    let mut server_obj = server::init(socket, filename.to_string(), authtoken.to_string());
+    let mut server_obj = server::init(connection, filename.to_string(), authtoken.to_string());
 
     //main loop which listens for connections and serves data depending on stage
     server_obj.mainloop().await;
@@ -54,32 +102,18 @@ async fn client(file_to_get: &String, authtoken: &String) {
     //NAT traversal
 
     //get our external IP and port
-    protocol::get_external_and_nat(&socket).await;
+    get_external_and_nat(&socket).await;
 
     //get server's external IP and port
-    println!("Enter server IP info: ");
-    let stdin = io::stdin();
-    let mut server_interface = String::new();
-    stdin
-        .read_line(&mut server_interface)
-        .expect("Couldn't read from stdin");
+    let server_int = get_other_ip("Enter server IP:".to_string());
 
-    //get rid of \n from input
-    let server_int = server_interface[..server_interface.len() - 1].to_string();
+    let connection = connection::init_conn(socket);
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
-    protocol::init_nat_traversal(&socket, &server_int).await;
-
-    //connect to *hopefully* open server port
-    socket
-        .connect(server_int)
-        .await
-        .expect("Couldn't connect to server, is it running?");
-
-    //print to screen what local port we're using here just in case
-    println!("I am receiving at {}", socket.local_addr().unwrap());
+    connection.sync_nat_traversal();
+    connection.init_nat_traversal(&server_int).await;
 
     //create Client object and send initial request to server
-    let mut client_obj = client::init(socket, file_to_get, authtoken);
+    let mut client_obj = client::init(connection, file_to_get, authtoken, server_int);
     client_obj.init_connection().await;
     //listen for server responses and deal with them accordingly
     client_obj.mainloop().await;
@@ -89,7 +123,7 @@ async fn client(file_to_get: &String, authtoken: &String) {
 async fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve>");
+        error!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve>");
     }
 
     let mode = &args[1];
@@ -103,6 +137,6 @@ async fn main() {
         let file_to_get = &args[2];
         client(file_to_get, &auth).await;
     } else {
-        eprintln!("Incorrect args entered!");
+        error!("Incorrect args entered!");
     }
 }

@@ -50,7 +50,7 @@ impl Server {
                 //client wants server to resend
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Client asked for resend!");
-                    self.connection.resend_to(&src);
+                    self.connection.resend_to(&src).await;
                     continue;
                 }
                 //proceed normally
@@ -207,17 +207,18 @@ impl Server {
             self.end_connection(src).await;
             return;
         }
-        let Some(mut offset) = parsing::parse_last_received(&message[..], amt);
-        if offset >= self.data.len() {
-            //send an END packet
-            self.end_connection_with_resend(src).await;
-            return;
-        }
-        //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
-        let n = self.connection.read_n(&src);
-        for _ in 0..n {
-            self.send_one_chunk(src, offset).await;
-            offset += connection::DATA_SIZE;
+        if let Some(mut offset) = parsing::parse_last_received(&message[..], amt) {
+            if offset >= self.data.len() {
+                //send an END packet
+                self.end_connection_with_resend(src).await;
+                return;
+            }
+            //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
+            let n = self.connection.read_n(&src);
+            for _ in 0..n {
+                self.send_one_chunk(src, offset).await;
+                offset += connection::DATA_SIZE;
+            }
         }
     }
 }
