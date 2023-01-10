@@ -3,25 +3,29 @@ use memmap2::MmapMut;
 use std::collections::HashMap;
 use std::fs::{remove_file, File, OpenOptions};
 use std::io::{stdin, Seek, SeekFrom, Write};
+use std::net::SocketAddr;
 use std::process::exit;
-use tokio::net::UdpSocket;
-use tokio::time::timeout;
 
-use crate::protocol;
+use crate::connection;
+use crate::parsing::{ClientState, PrimitiveMessage};
+use crate::parsing;
+
+use log::{debug, error, info, warn};
 
 pub struct Client {
-    socket: UdpSocket,
+    connection: connection::Connection,
     file: File,
     filename: String,
     authtoken: String,
     filesize: usize,
-    state: protocol::ClientState,
+    state: ClientState,
     counter: usize,
     packets_left: HashMap<usize, bool>,
     packet_cache: HashMap<usize, Vec<u8>>,
+    server: SocketAddr
 }
 
-pub fn init(socket: UdpSocket, file_to_get: &String, authtoken: &String) -> Client {
+pub fn init(conn: connection::Connection, file_to_get: &String, authtoken: &String, server: SocketAddr) -> Client {
     let fd = OpenOptions::new()
         .read(true)
         .write(true)
@@ -30,15 +34,16 @@ pub fn init(socket: UdpSocket, file_to_get: &String, authtoken: &String) -> Clie
         .unwrap();
 
     let client_obj = Client {
-        socket,
+        connection: conn,
         file: fd,
         filename: file_to_get.to_string(),
         authtoken: authtoken.to_string(),
         filesize: 0,
-        state: protocol::ClientState::NoState,
+        state: ClientState::NoState,
         counter: 0,
         packets_left: HashMap::new(),
         packet_cache: HashMap::new(),
+        server
     };
     client_obj
 }
@@ -48,47 +53,31 @@ pub fn init(socket: UdpSocket, file_to_get: &String, authtoken: &String) -> Clie
 impl Client {
     //initialize connection to server
     pub async fn init_connection(&mut self) {
-        println!("Client has new connection to make!");
-        let filereq = protocol::send_req(&self.filename, &self.authtoken);
-        protocol::send(&self.socket, &filereq).await;
-        self.state = protocol::ClientState::ACKorNACK;
+        info!("Client has new connection to make!");
+        let filereq = parsing::send_req(&self.filename, &self.authtoken);
+        self.connection.send_to(&self.server,&filereq).await;
+        self.state = ClientState::ACKorNACK;
     }
 
     pub async fn mainloop(&mut self) {
-        let mut last_recv = true;
-        let mut is_connected = false;
         loop {
-            if !last_recv && is_connected {
-                protocol::resend(&self.socket).await;
-                println!("Sent resent packet");
-                last_recv = true;
-            }
-
-            let mut buf = [0u8; protocol::MTU];
-            if let Ok((amt, _)) = timeout(
-                protocol::MAX_WAIT_TIME,
-                protocol::recv(&self.socket, &mut buf),
-            )
-            .await
-            {
-                if protocol::parse_resend(buf, amt) {
-                    protocol::resend(&self.socket).await;
+            let mut buffer = [0u8; connection::MTU];
+            if let Some((amt,src)) = self.connection.reliable_recv(&mut buffer).await {
+                //server wants client to resend
+                if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
+                    warn!("Server asked for resend!");
+                    self.connection.resend_to(&self.server);
                     continue;
                 }
-                //make sure program exits gracefully
-                let continue_with_loop = self.process_msg(buf, amt).await;
+                //proceed normally
+                let continue_with_loop = self.process_msg(buffer, amt).await;
                 if !continue_with_loop {
-                    println!("Client exiting...");
+                    info!("Client exiting...");
                     break;
                 }
-                is_connected = true;
             } else {
-                if !is_connected {
-                    println!("Initial connection request may have been lost! Resending...");
-                    self.init_connection().await;
-                }
-                println!("Client could not receive data in time!");
-                last_recv = false;
+                //retry again in next iteration of loop; we have already sent resend request
+                continue;
             }
         }
     }
@@ -112,36 +101,36 @@ impl Client {
     }
 
     //pass message received here to determine what to do; action will be taken asynchronously
-    async fn process_msg(&mut self, message: [u8; protocol::MTU], size: usize) -> bool {
+    async fn process_msg(&mut self, message: [u8; connection::MTU], size: usize) -> bool {
         if size == 0 {
             //maybe new connection
             match self.state {
-                protocol::ClientState::NoState => {
+                ClientState::NoState => {
                     self.init_connection().await;
                     return true;
                 }
                 _ => {
-                    eprintln!("An error has occurred!");
+                    error!("An error has occurred!");
                     return self.end_connection().await;
                 }
             }
         }
         match self.state {
-            protocol::ClientState::NoState => {
+            ClientState::NoState => {
                 //new connection
                 self.init_connection().await;
                 true
             }
-            protocol::ClientState::ACKorNACK => {
+            ClientState::ACKorNACK => {
                 //ask user whether they want the file or not
-                self.filesize = protocol::parse_filesize_packet(message, size);
+                Some(self.filesize) = parsing::parse_filesize_packet(&message[..], size);
                 let decision = self.get_user_decision();
                 //send ACK/NACK
                 if decision {
                     //setup HashMap to keep track of all received packets
-                    let max_packets = self.filesize / protocol::DATA_SIZE + 1;
+                    let max_packets = self.filesize / connection::DATA_SIZE + 1;
                     for i in 0..max_packets {
-                        self.packets_left.insert(protocol::DATA_SIZE * i, false);
+                        self.packets_left.insert(connection::DATA_SIZE * i, false);
                     }
                     //fix size of file
                     self.file
@@ -150,24 +139,24 @@ impl Client {
                     self.file.write_all(&[0]).unwrap();
                     self.file.seek(SeekFrom::Start(0)).unwrap();
 
-                    println!("Sending ACK");
-                    protocol::send(&self.socket, protocol::ACK.as_ref()).await;
-                    self.state = protocol::ClientState::SendFile;
+                    debug!("Sending ACK");
+                    self.connection.send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::ACK)).await;
+                    self.state = ClientState::SendFile;
                     true
                 } else {
-                    println!("Stopping transfer");
-                    protocol::send(&self.socket, protocol::NACK.as_ref()).await;
-                    println!("Sent NACK");
+                    info!("Stopping transfer");
+                    self.connection.send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::NACK)).await;
+                    debug!("Sent NACK");
                     //delete open file
                     remove_file(&self.filename).expect("Couldn't remove file!");
                     self.end_connection().await;
                     false
                 }
             }
-            protocol::ClientState::SendFile => {
+            ClientState::SendFile => {
                 println!("Client has to receive the file");
-                if protocol::parse_end(message, size) && self.packets_left.is_empty() {
-                    println!("END received...");
+                if parsing::parse_primitive(&message[..], size) == PrimitiveMessage::END && self.packets_left.is_empty() {
+                    info!("END received...");
                     self.end_connection().await;
                     false
                 } else {
@@ -175,11 +164,11 @@ impl Client {
                     true
                 }
             }
-            protocol::ClientState::EndConn => {
-                println!("Client has received file completely...");
+            ClientState::EndConn => {
+                info!("Client has received file completely...");
                 self.end_connection().await
             }
-            protocol::ClientState::EndedConn => {
+            ClientState::EndedConn => {
                 //do nothing
                 self.end_connection().await
             }
@@ -188,6 +177,7 @@ impl Client {
 
     //writes to file from packets in cache and clears map
     fn write_to_file(&mut self) -> usize {
+        debug!("Writing packet_cache to file...");
         let mut last = 0;
         for (offset, data) in self.packet_cache.iter() {
             last = offset + data.len();
@@ -201,18 +191,18 @@ impl Client {
     }
 
     async fn end_connection(&mut self) -> bool {
-        self.state = protocol::ClientState::EndConn;
-        protocol::send(&self.socket, protocol::END.as_ref()).await;
+        self.state = ClientState::EndConn;
+        self.connection.send_to(&self.server, &parsing::get_primitive(PrimitiveMessage::END)).await;
         //write remaining packets in packet_cache
         self.write_to_file();
         //the end
-        println!("Ending Client object...");
+        info!("Ending Client object...");
         exit(0);
     }
 
-    async fn save_data_to_file(&mut self, message: [u8; protocol::MTU], size: usize) {
-        let (offset, data) =
-            protocol::parse_data_packet(message, size).expect("Incorrect data packet!");
+    async fn save_data_to_file(&mut self, message: [u8; connection::MTU], size: usize) {
+        let Some((offset, data)) =
+            parsing::parse_data_packet(&message[..], size);
         if self.packets_left.get(&offset).is_none() {
             //already been received, assume we already have it inside memory
             println!("Got already received packet");
@@ -222,23 +212,23 @@ impl Client {
             //save to packet_cache
             self.packet_cache.insert(offset, data);
         }
-        println!("Need {} more packets", self.packets_left.len());
+        info!("Need {} more packets", self.packets_left.len());
         self.counter += 1;
-        println!("Received offset {}", offset);
+        debug!("Received offset {}", offset);
         if self.packets_left.is_empty() {
-            println!("Client received entire file, ending...");
+            info!("Client received entire file, ending...");
             //client received entire file, end connection
             self.end_connection().await;
         } else {
             //keep track of whether we received all PROTOCOL_N packets or not
             //send request for next packet only if this is PROTOCOL_Nth packet
             //else server will automatically assume to resend packets
-            let n = protocol::read_n();
+            let n = self.connection.read_n(&self.server);
             if self.counter != 0 && self.counter % n == 0 {
                 self.counter = 0;
                 //write to file in batches only
                 let last = self.write_to_file();
-                protocol::send(&self.socket, &protocol::last_received_packet(last)).await;
+                self.connection.send_to(&self.server, &parsing::last_received_packet(last)).await;
             }
         }
     }
