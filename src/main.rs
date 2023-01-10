@@ -121,6 +121,7 @@ async fn client(file_to_get: &String, authtoken: &String) {
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         error!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve>");
