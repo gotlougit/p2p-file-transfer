@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 
 use crate::auth;
 use crate::connection;
+use crate::connection::change_map_value;
 use crate::parsing;
 use crate::parsing::{ClientState, PrimitiveMessage};
 
@@ -51,56 +52,49 @@ impl Server {
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Client asked for resend!");
                     self.connection.resend_to(&src).await;
-                    continue;
+                } else {
+                    //proceed normally
+                    self.process_msg(&src, buffer, amt).await;
                 }
-                //proceed normally
-                self.process_msg(&src, buffer, amt).await;
-            } else {
-                //retry again in next iteration of loop; we have already sent resend request
-                continue;
             }
+            //retry again in next iteration of loop; we have already sent resend request
         }
     }
 
     //pass message received here to determine what to do; action will be taken asynchronously
     async fn process_msg(&mut self, src: &SocketAddr, message: [u8; connection::MTU], amt: usize) {
-        if self.src_state_map.contains_key(src) {
+
+        if let Some(curstate) = self.src_state_map.get(src) {
             debug!("Found prev connection, checking state and handling corresponding call..");
             //we are already communicating with client
-            if let Some(curstate) = self.src_state_map.get(src) {
-                match curstate {
-                    ClientState::NoState => {
-                        self.initiate_transfer_server(&src, message, amt).await;
+            match curstate {
+                ClientState::NoState => {
+                    self.initiate_transfer_server(&src, message, amt).await;
+                }
+                ClientState::ACKorNACK => {
+                    self.check_ack_or_nack(&src, message, amt).await;
+                }
+                ClientState::SendFile => {
+                    self.send_data_in_chunks(&src, message, amt).await;
+                }
+                ClientState::EndConn => {
+                    if parsing::parse_primitive(&message[..], amt) == PrimitiveMessage::END {
+                        self.end_connection(src).await;
+                        return;
                     }
-                    ClientState::ACKorNACK => {
-                        self.check_ack_or_nack(&src, message, amt).await;
-                    }
-                    ClientState::SendFile => {
-                        self.send_data_in_chunks(&src, message, amt).await;
-                    }
-                    ClientState::EndConn => {
-                        if parsing::parse_primitive(&message[..], amt) == PrimitiveMessage::END {
-                            self.end_connection(src).await;
-                            return;
-                        }
-                        self.end_connection_with_resend(src).await;
-                    }
-                    ClientState::EndedConn => {
-                        if parsing::parse_primitive(&message[..], amt) == PrimitiveMessage::END {
-                            self.end_connection(src).await;
-                            return;
-                        }
-                        if parsing::parse_primitive(&message[..], amt) == PrimitiveMessage::RESEND {
+                    self.end_connection_with_resend(src).await;
+                }
+                ClientState::EndedConn => {
+                    match parsing::parse_primitive(&message[..], amt) {
+                        PrimitiveMessage::END => self.end_connection(src).await,
+                        PrimitiveMessage::RESEND => {
+                            //doubtful this ever executes
                             warn!("Client may not have received last part of file! Sending last chunk...");
                             let n = self.connection.read_n(&src);
-                            let mut offset = self.data.len() - connection::DATA_SIZE * n;
-                            for _ in 0..n {
-                                self.send_one_chunk(src, offset).await;
-                                offset += connection::DATA_SIZE;
-                            }
-                        } else {
-                            self.send_data_in_chunks(&src, message, amt).await;
+                            let offset = self.data.len() - connection::DATA_SIZE * n;
+                            self.send_n_chunks(&src, offset).await;
                         }
+                        _ => self.send_data_in_chunks(&src, message, amt).await,
                     }
                 }
             }
@@ -109,12 +103,6 @@ impl Server {
             //TODO: implement authentication check here
             self.src_state_map.insert(*src, ClientState::NoState); //start from scratch
             self.initiate_transfer_server(src, message, amt).await; //initialize function
-        }
-    }
-
-    fn change_src_state(&mut self, src: &SocketAddr, newstate: ClientState) {
-        if self.src_state_map.remove(src).is_some() {
-            self.src_state_map.insert(*src, newstate);
         }
     }
 
@@ -131,7 +119,7 @@ impl Server {
         self.connection
             .send_to(&src, &parsing::get_primitive(PrimitiveMessage::END))
             .await;
-        self.change_src_state(src, ClientState::EndedConn);
+        change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::EndedConn);
     }
 
     async fn initiate_transfer_server(
@@ -146,7 +134,7 @@ impl Server {
             debug!("Sending client size of file");
             self.connection.send_to(&src, &self.size_msg).await;
             info!("Awaiting response from client...");
-            self.change_src_state(src, ClientState::ACKorNACK);
+            change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::ACKorNACK);
         } else {
             //send dummy message as client failed to authenticate
             error!("Client was not able to be authenticated!");
@@ -168,14 +156,11 @@ impl Server {
         match parsing::parse_primitive(&message[..], amt) {
             PrimitiveMessage::ACK => {
                 debug!("Client sent ACK");
-                self.change_src_state(src, ClientState::SendFile);
-                //for now we can do this directly
-                self.send_data_in_chunks(src, message, amt).await;
+                change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::SendFile);
             }
             PrimitiveMessage::NACK => {
                 debug!("Client sent NACK");
-                self.change_src_state(src, ClientState::EndConn);
-                //directly do this since connection needs to be closed anyway
+                change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::EndConn);
                 self.end_connection(src).await;
             }
             _ => {
@@ -205,6 +190,15 @@ impl Server {
         }
     }
 
+    async fn send_n_chunks(&mut self, src: &SocketAddr, offset: usize) {
+        let mut offset = offset;
+        let n = self.connection.read_n(&src);
+        for _ in 0..n {
+            self.send_one_chunk(src, offset).await;
+            offset += connection::DATA_SIZE;
+        }
+    }
+
     async fn send_data_in_chunks(
         &mut self,
         src: &SocketAddr,
@@ -215,17 +209,25 @@ impl Server {
             self.end_connection(src).await;
             return;
         }
-        if let Some(mut offset) = parsing::parse_last_received(&message[..], amt) {
+        if let Some(offset) = parsing::parse_last_received(&message[..], amt) {
             if offset >= self.data.len() {
                 //send an END packet
                 self.end_connection_with_resend(src).await;
                 return;
             }
-            //send PROTOCOL_N number of chunks at once and implement go back N if they have not been received
-            let n = self.connection.read_n(&src);
-            for _ in 0..n {
-                self.send_one_chunk(src, offset).await;
-                offset += connection::DATA_SIZE;
+            self.send_n_chunks(src, offset).await;
+        } else {
+            warn!("Ignoring incorrect chunk request");
+            if let Some(state) = self.src_state_map.get(src) {
+                match state {
+                    ClientState::SendFile => {
+                        warn!("Assuming we have to send client from offset 0");
+                        self.send_n_chunks(src, 0).await;
+                    },
+                    _ => {
+                        error!("Incorrect state for IP {}", src);
+                    }
+                }
             }
         }
     }
