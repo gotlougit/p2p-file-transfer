@@ -44,7 +44,7 @@ async fn get_external_and_nat(socket: &UdpSocket) {
     }
 }
 
-fn get_other_ip(message : String) -> SocketAddr {
+fn get_other_ip(message: String) -> SocketAddr {
     //get client's external IP and port
     //TODO: add control plane which will automate this to support multiple clients
     println!("{}", message);

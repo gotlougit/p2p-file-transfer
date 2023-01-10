@@ -1,14 +1,14 @@
 //implements server object which is capable of handling multiple clients at once
+use log::{debug, error, info, warn};
 use memmap2::Mmap;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::net::SocketAddr;
-use log::{debug, error, info, warn};
 
 use crate::auth;
-use crate::parsing;
 use crate::connection;
-use crate::parsing::{ClientState,PrimitiveMessage};
+use crate::parsing;
+use crate::parsing::{ClientState, PrimitiveMessage};
 
 pub struct Server {
     connection: connection::Connection,
@@ -46,7 +46,7 @@ impl Server {
     pub async fn mainloop(&mut self) {
         loop {
             let mut buffer = [0u8; connection::MTU];
-            if let Some((amt,src)) = self.connection.reliable_recv(&mut buffer).await {
+            if let Some((amt, src)) = self.connection.reliable_recv(&mut buffer).await {
                 //client wants server to resend
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Client asked for resend!");
@@ -120,13 +120,17 @@ impl Server {
 
     async fn end_connection(&mut self, src: &SocketAddr) {
         info!("Sending END (permanent end to connection) to {}", src);
-        self.connection.send_to(&src, &parsing::get_primitive(PrimitiveMessage::END)).await;
+        self.connection
+            .send_to(&src, &parsing::get_primitive(PrimitiveMessage::END))
+            .await;
         self.src_state_map.remove(src);
     }
 
     async fn end_connection_with_resend(&mut self, src: &SocketAddr) {
         info!("Sending END (with resend allowed) to {}", src);
-        self.connection.send_to(&src, &parsing::get_primitive(PrimitiveMessage::END)).await;
+        self.connection
+            .send_to(&src, &parsing::get_primitive(PrimitiveMessage::END))
+            .await;
         self.change_src_state(src, ClientState::EndedConn);
     }
 
@@ -147,7 +151,9 @@ impl Server {
             //send dummy message as client failed to authenticate
             error!("Client was not able to be authenticated!");
             debug!("Sending 0 size file...");
-            self.connection.send_to(&src, &parsing::filesize_packet(0)).await;
+            self.connection
+                .send_to(&src, &parsing::filesize_packet(0))
+                .await;
             //end connection
             self.end_connection(src).await;
         }
@@ -189,8 +195,10 @@ impl Server {
             end_afterwards = true;
         }
         debug!("Sending a chunk...");
-        let packet = self.data[offset..offset+len].to_vec();
-        self.connection.send_to(&src, &parsing::data_packet(offset, &packet)).await;
+        let packet = self.data[offset..offset + len].to_vec();
+        self.connection
+            .send_to(&src, &parsing::data_packet(offset, &packet))
+            .await;
         if end_afterwards {
             info!("File sent completely");
             self.end_connection_with_resend(src).await;
