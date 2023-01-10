@@ -10,15 +10,6 @@ use tokio::time::timeout;
 
 use log::{debug, error, info, warn};
 
-//useful to mark states of connection
-pub enum ClientState {
-    NoState,
-    ACKorNACK,
-    SendFile,
-    EndConn,
-    EndedConn,
-}
-
 //defines how small and large the sliding window can be
 const INITIAL_N: usize = 6;
 const MAX_N: usize = 6;
@@ -103,9 +94,13 @@ impl Connection {
     }
 
     fn add_ip_to_maps(&mut self, ip: &SocketAddr) {
-        debug!("Adding IP {} to both maps", ip);
-        self.protocol_n.insert(*ip,INITIAL_N);
-        self.lastmsg.insert(*ip,Vec::new());
+        debug!("Adding IP {} to maps", ip);
+        if self.protocol_n.get(ip) == None {
+            self.protocol_n.insert(*ip,INITIAL_N);
+        }
+        if self.lastmsg.get(ip) == None {
+            self.lastmsg.insert(*ip,Vec::new());
+        }
     }
 
     //deal with N for each IP
@@ -155,9 +150,17 @@ impl Connection {
             if v.len() == self.read_n(ip) {
                 self.reset_last_msg(ip);
             }
-            return;
+        } else {
+            error!("N could not be read for IP {}, probably not in map", ip);
+            self.add_ip_to_maps(ip);
         }
-        error!("N could not be read for IP {}, probably not in map", ip);
+        //now that we know a Vec exists for the given IP, let's add message to it
+        if let Some(v) = self.lastmsg.get(ip) {
+            let mut newv = v.clone();
+            newv.push(message);
+            change_map_value::<SocketAddr, Vec<Vec<u8>>>(&mut self.lastmsg, *ip, newv);
+        }
+
     }
 
     fn reset_last_msg(&mut self, ip: &SocketAddr) {
