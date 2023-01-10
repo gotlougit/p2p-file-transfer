@@ -21,7 +21,7 @@ pub enum ClientState {
 
 //defines how small and large the sliding window can be
 const INITIAL_N: usize = 6;
-const MAX_N: usize = 75;
+const MAX_N: usize = 6;
 
 //DIVIDER tells the maximum time that both machines will wait before initiating
 //NAT traversal
@@ -29,7 +29,7 @@ const DIVIDER: u64 = 15;
 
 //amount of time each machine waits before declaring a timeout and initiating
 //RESEND
-const MAX_WAIT_TIME: Duration = Duration::from_secs(5);
+const MAX_WAIT_TIME: Duration = Duration::from_secs(3);
 
 //MTU: maximum raw info in one packet
 pub const MTU: usize = 1280;
@@ -40,7 +40,7 @@ pub const DATA_SIZE: usize = 1000;
 const DUMMY_MSG_NUM: usize = 5;
 
 //small function used everywhere here
-fn change_map_value<K, V>(map: &mut HashMap<K, V>, key: K, newval: V)
+pub fn change_map_value<K, V>(map: &mut HashMap<K, V>, key: K, newval: V)
 where
     K: Eq,
     K: Hash,
