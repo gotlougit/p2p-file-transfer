@@ -72,8 +72,7 @@ pub fn parse_primitive(message: &[u8], amt: usize) -> PrimitiveMessage {
             if message[..3] == ACK {
                 debug!("Parsed ACK");
                 return PrimitiveMessage::ACK;
-            }
-            if message[..3] == END {
+            } else if message[..3] == END {
                 debug!("Parsed END");
                 return PrimitiveMessage::END;
             }
@@ -81,12 +80,18 @@ pub fn parse_primitive(message: &[u8], amt: usize) -> PrimitiveMessage {
             return PrimitiveMessage::INVALID;
         }
         4 => {
-            debug!("Parsed NACK");
-            return PrimitiveMessage::NACK;
+            if message[..4] == NACK {
+                debug!("Parsed NACK");
+                return PrimitiveMessage::NACK;
+            }
+            return PrimitiveMessage::INVALID;
         }
         6 => {
-            debug!("Parsed RESEND");
-            return PrimitiveMessage::RESEND;
+            if message[..6] == RESEND {
+                debug!("Parsed RESEND");
+                return PrimitiveMessage::RESEND;
+            }
+            return PrimitiveMessage::INVALID;
         }
         _ => {
             error!("Parsed invalid primitive message");
