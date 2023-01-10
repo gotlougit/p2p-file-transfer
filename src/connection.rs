@@ -102,6 +102,12 @@ impl Connection {
         connected
     }
 
+    fn add_ip_to_maps(&mut self, ip: &SocketAddr) {
+        debug!("Adding IP {} to both maps", ip);
+        self.protocol_n.insert(*ip,INITIAL_N);
+        self.lastmsg.insert(*ip,Vec::new());
+    }
+
     //deal with N for each IP
     fn grow_n(&mut self, ip: &SocketAddr) {
         if let Some(n) = self.protocol_n.get(ip) {
@@ -113,25 +119,28 @@ impl Connection {
             }
         }
         error!("N could not be read for IP {}, probably not in map", ip);
+        self.add_ip_to_maps(ip);
     }
 
     fn reset_n(&mut self, ip: &SocketAddr) {
-        if let Some(n) = self.protocol_n.get(ip) {
+        if let Some(_) = self.protocol_n.get(ip) {
             let n = &INITIAL_N;
             debug!("Reset N to {} for IP: {}", n, ip);
             change_map_value::<SocketAddr, usize>(&mut self.protocol_n, *ip, *n);
             return;
         }
         error!("N could not be read for IP {}, probably not in map", ip);
+        self.add_ip_to_maps(ip);
     }
 
-    pub fn read_n(&self, ip: &SocketAddr) -> usize {
+    pub fn read_n(&mut self, ip: &SocketAddr) -> usize {
         if let Some(n) = self.protocol_n.get(ip) {
             debug!("Read N as {} for IP: {}", n, ip);
             return *n;
         }
         error!("N could not be read for IP {}, probably not in map", ip);
-        0
+        self.add_ip_to_maps(ip);
+        INITIAL_N
     }
 
     //get current list of IP addresses connected
