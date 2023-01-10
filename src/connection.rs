@@ -8,10 +8,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
 
-use log::debug;
-use log::error;
-use log::info;
-use log::warn;
+use log::{debug, error, info, warn};
 
 //useful to mark states of connection
 pub enum ClientState {
@@ -89,9 +86,9 @@ impl Connection {
         let mut connected = false;
         let dummymsg = *b"HELLOWORLD";
         for _ in 0..DUMMY_MSG_NUM {
-            self._send_to(ip, &dummymsg).await;
+            self.basic_send_to(ip, &dummymsg).await;
             let mut buf = [0u8; MTU];
-            let recv_future = self._recv(&mut buf);
+            let recv_future = self.basic_recv(&mut buf);
             match timeout(MAX_WAIT_TIME, recv_future).await {
                 Ok((_, src)) => {
                     connected = connected || src == *ip;
@@ -168,7 +165,7 @@ impl Connection {
         debug!("Resending to IP {}", ip);
         if let Some(messages) = self.lastmsg.get(ip) {
             for msg in messages {
-                self._send_to(ip, msg).await;
+                self.basic_send_to(ip, msg).await;
             }
         }
         self.reset_n(ip);

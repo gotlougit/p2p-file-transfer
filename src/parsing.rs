@@ -1,6 +1,5 @@
 //used to convert from variables to raw bytes to be sent through network and vice versa
-use log::debug;
-use log::error;
+use log::{debug, error};
 use std::str;
 
 //use this instead of comparing raw bytes every time
@@ -11,6 +10,15 @@ pub enum PrimitiveMessage {
     END,
     RESEND,
     INVALID,
+}
+
+//helps keep track of client states
+pub enum ClientState {
+    NoState,
+    ACKorNACK,
+    SendFile,
+    EndConn,
+    EndedConn,
 }
 
 //small message types are convenient as consts
@@ -203,4 +211,21 @@ pub fn parse_data_packet(message: &[u8], amt: usize) -> Option<(usize, Vec<u8>)>
     };
     debug!("Parsed data packet");
     Some((offset, message[sizeofheader..amt].to_vec()))
+}
+
+pub fn resend_offset(offset: usize) -> Vec<u8> {
+    let s = String::from("RESEND ") + &offset.to_string();
+    s.as_bytes().to_vec()
+}
+
+pub fn parse_resend_offset(message: &[u8], amt: usize) -> Option<usize> {
+    let Some(req) = parse_generic_req(message, amt);
+    let offset_requested = match req.split("RESEND ").collect::<Vec<&str>>().get(1) {
+        Some(x) => x.to_string().parse::<usize>().unwrap(),
+        None => {
+            error!("Resend offset parse error!");
+            return None;
+        }
+    };
+    Some(offset_requested)
 }
