@@ -110,11 +110,11 @@ impl Connection {
                 let n = &(n * 2);
                 debug!("Increased N to {} for IP: {}", n, ip);
                 change_map_value::<SocketAddr, usize>(&mut self.protocol_n, *ip, *n);
-                return;
             }
+        } else {
+            error!("N could not be read for IP {}, probably not in map", ip);
+            self.add_ip_to_maps(ip);
         }
-        error!("N could not be read for IP {}, probably not in map", ip);
-        self.add_ip_to_maps(ip);
     }
 
     fn reset_n(&mut self, ip: &SocketAddr) {
@@ -122,20 +122,21 @@ impl Connection {
             let n = &INITIAL_N;
             debug!("Reset N to {} for IP: {}", n, ip);
             change_map_value::<SocketAddr, usize>(&mut self.protocol_n, *ip, *n);
-            return;
+        } else {
+            error!("N could not be read for IP {}, probably not in map", ip);
+            self.add_ip_to_maps(ip);
         }
-        error!("N could not be read for IP {}, probably not in map", ip);
-        self.add_ip_to_maps(ip);
     }
 
     pub fn read_n(&mut self, ip: &SocketAddr) -> usize {
         if let Some(n) = self.protocol_n.get(ip) {
             debug!("Read N as {} for IP: {}", n, ip);
             return *n;
+        } else {
+            error!("N could not be read for IP {}, probably not in map", ip);
+            self.add_ip_to_maps(ip);
+            INITIAL_N
         }
-        error!("N could not be read for IP {}, probably not in map", ip);
-        self.add_ip_to_maps(ip);
-        INITIAL_N
     }
 
     //get current list of IP addresses connected
@@ -167,9 +168,10 @@ impl Connection {
         if let Some(_) = self.lastmsg.get(ip) {
             let emptyvec: Vec<Vec<u8>> = Vec::new();
             change_map_value::<SocketAddr, Vec<Vec<u8>>>(&mut self.lastmsg, *ip, emptyvec);
-            return;
+        } else {
+            error!("N could not be read for IP {}, probably not in map", ip);
+            self.add_ip_to_maps(ip);
         }
-        error!("N could not be read for IP {}, probably not in map", ip);
     }
 
     //resend last messages
