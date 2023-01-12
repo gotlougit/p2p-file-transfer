@@ -149,6 +149,7 @@ impl Connection {
     fn add_last_msg(&mut self, ip: &SocketAddr, message: Vec<u8>) {
         if let Some(v) = self.lastmsg.get(ip) {
             if v.len() == self.read_n(ip) {
+                debug!("Resetting lastmsg for IP {}",ip);
                 self.reset_last_msg(ip);
             }
         } else {
@@ -165,13 +166,8 @@ impl Connection {
     }
 
     fn reset_last_msg(&mut self, ip: &SocketAddr) {
-        if let Some(_) = self.lastmsg.get(ip) {
-            let emptyvec: Vec<Vec<u8>> = Vec::new();
-            change_map_value::<SocketAddr, Vec<Vec<u8>>>(&mut self.lastmsg, *ip, emptyvec);
-        } else {
-            error!("N could not be read for IP {}, probably not in map", ip);
-            self.add_ip_to_maps(ip);
-        }
+        let emptyvec: Vec<Vec<u8>> = Vec::new();
+        change_map_value::<SocketAddr, Vec<Vec<u8>>>(&mut self.lastmsg, *ip, emptyvec);
     }
 
     //resend last messages
