@@ -12,7 +12,7 @@ use log::{debug, error, info, warn};
 
 //defines how small and large the sliding window can be
 const INITIAL_N: usize = 6;
-const MAX_N: usize = 6;
+const MAX_N: usize = 75;
 
 //DIVIDER tells the maximum time that both machines will wait before initiating
 //NAT traversal
@@ -148,7 +148,7 @@ impl Connection {
     //deal with last messages for each IP
     fn add_last_msg(&mut self, ip: &SocketAddr, message: Vec<u8>) {
         if let Some(v) = self.lastmsg.get(ip) {
-            if v.len() == self.read_n(ip) {
+            if v.len() >= self.read_n(ip) {
                 debug!("Resetting lastmsg for IP {}",ip);
                 self.reset_last_msg(ip);
             }
