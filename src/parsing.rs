@@ -1,5 +1,5 @@
 //used to convert from variables to raw bytes to be sent through network and vice versa
-use log::{debug, error};
+use tracing::{debug, error};
 use std::str;
 
 //use this instead of comparing raw bytes every time

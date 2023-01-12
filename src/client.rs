@@ -10,7 +10,7 @@ use crate::connection;
 use crate::parsing;
 use crate::parsing::{ClientState, PrimitiveMessage};
 
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub struct Client {
     connection: connection::Connection,

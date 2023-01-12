@@ -8,7 +8,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
 
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 
 //defines how small and large the sliding window can be
 const INITIAL_N: usize = 6;

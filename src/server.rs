@@ -1,5 +1,5 @@
 //implements server object which is capable of handling multiple clients at once
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use memmap2::Mmap;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
