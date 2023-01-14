@@ -3,7 +3,7 @@ use tracing::{debug, error};
 use std::str;
 
 //use this instead of comparing raw bytes every time
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum PrimitiveMessage {
     ACK,
     NACK,
@@ -29,6 +29,9 @@ const END: [u8; 3] = *b"END";
 
 //get the plaintext parts of packet out into a String if possible
 fn parse_generic_req(message: &[u8], amt: usize) -> Option<String> {
+    if amt > message.len() {
+        return None;
+    }
     let req = match str::from_utf8(&message[..amt]) {
         Ok(x) => x.to_string(),
         Err(_) => {
@@ -242,4 +245,19 @@ pub fn parse_resend_offset(message: &[u8], amt: usize) -> Option<usize> {
         return Some(offset_requested);
     }
     None
+}
+
+#[cfg(test)]
+mod test {
+    use crate::parsing::parse_generic_req;
+    #[test]
+    fn test_generic_parser() {
+        let ok_input = *b"HELLO WORLD";
+        let bad_input = [129u8; 1000];
+        assert_eq!(parse_generic_req(&ok_input, 11).is_some(), true);
+        assert_eq!(parse_generic_req(&bad_input, 1000).is_some(), false);
+        assert_eq!(parse_generic_req(&bad_input, 1).is_some(), false);
+        assert_eq!(parse_generic_req(&bad_input, 1001).is_some(), false);
+    }
+
 }
