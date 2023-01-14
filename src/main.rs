@@ -1,9 +1,9 @@
-use tracing::{debug, error, info, warn};
 use std::env;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use stunclient::StunClient;
 use tokio::net::UdpSocket;
+use tracing::{debug, error, info, warn};
 
 mod auth;
 mod client;

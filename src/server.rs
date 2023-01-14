@@ -1,9 +1,9 @@
 //implements server object which is capable of handling multiple clients at once
-use tracing::{debug, error, info, warn};
 use memmap2::Mmap;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::net::SocketAddr;
+use tracing::{debug, error, info, warn};
 
 use crate::auth;
 use crate::connection;
@@ -63,7 +63,6 @@ impl Server {
 
     //pass message received here to determine what to do; action will be taken asynchronously
     async fn process_msg(&mut self, src: &SocketAddr, message: [u8; connection::MTU], amt: usize) {
-
         if let Some(curstate) = self.src_state_map.get(src) {
             debug!("Found prev connection, checking state and handling corresponding call..");
             //we are already communicating with client
@@ -119,7 +118,11 @@ impl Server {
         self.connection
             .send_to(&src, &parsing::get_primitive(PrimitiveMessage::END))
             .await;
-        change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::EndedConn);
+        change_map_value::<SocketAddr, ClientState>(
+            &mut self.src_state_map,
+            *src,
+            ClientState::EndedConn,
+        );
     }
 
     async fn initiate_transfer_server(
@@ -134,7 +137,11 @@ impl Server {
             debug!("Sending client size of file");
             self.connection.send_to(&src, &self.size_msg).await;
             info!("Awaiting response from client...");
-            change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::ACKorNACK);
+            change_map_value::<SocketAddr, ClientState>(
+                &mut self.src_state_map,
+                *src,
+                ClientState::ACKorNACK,
+            );
         } else {
             //send dummy message as client failed to authenticate
             error!("Client was not able to be authenticated!");
@@ -156,11 +163,19 @@ impl Server {
         match parsing::parse_primitive(&message[..], amt) {
             PrimitiveMessage::ACK => {
                 debug!("Client sent ACK");
-                change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::SendFile);
+                change_map_value::<SocketAddr, ClientState>(
+                    &mut self.src_state_map,
+                    *src,
+                    ClientState::SendFile,
+                );
             }
             PrimitiveMessage::NACK => {
                 debug!("Client sent NACK");
-                change_map_value::<SocketAddr, ClientState>(&mut self.src_state_map, *src, ClientState::EndConn);
+                change_map_value::<SocketAddr, ClientState>(
+                    &mut self.src_state_map,
+                    *src,
+                    ClientState::EndConn,
+                );
                 self.end_connection(src).await;
             }
             _ => {
@@ -223,7 +238,7 @@ impl Server {
                     ClientState::SendFile => {
                         warn!("Assuming we have to send client from offset 0");
                         self.send_n_chunks(src, 0).await;
-                    },
+                    }
                     _ => {
                         error!("Incorrect state for IP {}", src);
                     }

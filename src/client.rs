@@ -155,7 +155,9 @@ impl Client {
                             .await;
                         self.state = ClientState::SendFile;
                         //send request for first offset
-                        self.connection.send_to(&self.server, &parsing::last_received_packet(0)).await;
+                        self.connection
+                            .send_to(&self.server, &parsing::last_received_packet(0))
+                            .await;
                         return true;
                     } else {
                         info!("Stopping transfer");

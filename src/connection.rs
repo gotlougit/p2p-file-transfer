@@ -96,10 +96,10 @@ impl Connection {
     fn add_ip_to_maps(&mut self, ip: &SocketAddr) {
         debug!("Adding IP {} to maps", ip);
         if self.protocol_n.get(ip) == None {
-            self.protocol_n.insert(*ip,INITIAL_N);
+            self.protocol_n.insert(*ip, INITIAL_N);
         }
         if self.lastmsg.get(ip) == None {
-            self.lastmsg.insert(*ip,Vec::new());
+            self.lastmsg.insert(*ip, Vec::new());
         }
     }
 
@@ -149,7 +149,7 @@ impl Connection {
     fn add_last_msg(&mut self, ip: &SocketAddr, message: Vec<u8>) {
         if let Some(v) = self.lastmsg.get(ip) {
             if v.len() >= self.read_n(ip) {
-                debug!("Resetting lastmsg for IP {}",ip);
+                debug!("Resetting lastmsg for IP {}", ip);
                 self.reset_last_msg(ip);
             }
         } else {
@@ -162,7 +162,6 @@ impl Connection {
             newv.push(message);
             change_map_value::<SocketAddr, Vec<Vec<u8>>>(&mut self.lastmsg, *ip, newv);
         }
-
     }
 
     fn reset_last_msg(&mut self, ip: &SocketAddr) {
