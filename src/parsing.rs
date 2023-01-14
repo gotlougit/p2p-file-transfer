@@ -1,6 +1,6 @@
 //used to convert from variables to raw bytes to be sent through network and vice versa
-use tracing::{debug, error};
 use std::str;
+use tracing::{debug, error};
 
 //use this instead of comparing raw bytes every time
 #[derive(PartialEq, Debug)]
@@ -247,6 +247,7 @@ pub fn parse_resend_offset(message: &[u8], amt: usize) -> Option<usize> {
     None
 }
 
+//test private functions
 #[cfg(test)]
 mod test {
     use crate::parsing::parse_generic_req;
@@ -259,5 +260,4 @@ mod test {
         assert_eq!(parse_generic_req(&bad_input, 1).is_some(), false);
         assert_eq!(parse_generic_req(&bad_input, 1001).is_some(), false);
     }
-
 }
