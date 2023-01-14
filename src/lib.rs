@@ -5,7 +5,7 @@ mod test {
     use crate::parsing::*;
 
     #[test]
-    fn test_primitives() {
+    fn parsing_test_primitives() {
         let ack = get_primitive(PrimitiveMessage::ACK);
         let nack = get_primitive(PrimitiveMessage::NACK);
         let resend = get_primitive(PrimitiveMessage::RESEND);
@@ -20,7 +20,7 @@ mod test {
     }
 
     #[test]
-    fn test_send() {
+    fn parsing_test_send() {
         let fname = String::from("testfilename");
         let auth = String::from("testauthtoken");
         let sendreq = send_req(&fname, &auth);
@@ -34,7 +34,7 @@ mod test {
     }
 
     #[test]
-    fn test_filesize() {
+    fn parsing_test_filesize() {
         let fsize1 = 0;
         let fsize2 = 100;
         let fsize3 = usize::max_value();
@@ -63,7 +63,7 @@ mod test {
     }
 
     #[test]
-    fn test_last_recv() {
+    fn parsing_test_last_recv() {
         let offset1 = 0;
         let offset2 = 100;
         let offset3 = usize::max_value();
@@ -92,7 +92,7 @@ mod test {
     }
 
     #[test]
-    fn test_data_packet() {
+    fn parsing_test_data_packet() {
         let offset1 = 0;
         let offset2 = 1000;
         let offset3 = 10000;
