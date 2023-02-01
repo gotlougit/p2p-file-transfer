@@ -51,11 +51,10 @@ impl Server {
                 //client wants server to resend
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Client asked for resend!");
-                    self.connection.resend_to(&src).await;
                     match self.src_state_map.get(&src) {
                         Some(ClientState::SendFile) => {
                             //ask client to resend, this tricks it into sending the last packet size
-                            self.connection.resend_to(&src).await;
+                            self.connection.send_to(&src, &parsing::get_primitive(PrimitiveMessage::RESEND)).await;
                         }
                         _ => self.connection.resend_to(&src).await,
                     }
@@ -240,17 +239,6 @@ impl Server {
             self.send_n_chunks(src, offset).await;
         } else {
             warn!("Ignoring incorrect chunk request");
-            if let Some(state) = self.src_state_map.get(src) {
-                match state {
-                    ClientState::SendFile => {
-                        warn!("Assuming we have to send client from offset 0");
-                        self.send_n_chunks(src, 0).await;
-                    }
-                    _ => {
-                        error!("Incorrect state for IP {}", src);
-                    }
-                }
-            }
         }
     }
 }
