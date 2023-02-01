@@ -75,14 +75,22 @@ impl Client {
                     match self.state {
                         ClientState::SendFile => {
                             //find latest offset that was never received
-                            let (offset, _) = self.packet_cache.iter().next_back().unwrap();
-                            self.connection
-                                .send_to(
-                                    &self.server,
-                                    &parsing::last_received_packet(offset + connection::DATA_SIZE),
-                                )
-                                .await;
-                        }
+                            match self.packets_left.iter().next() {
+                                Some((offset,_)) => {
+                                    debug!("Asking server to send offset {} (part of resend req)", offset);
+                                    self.connection
+                                    .send_to(
+                                        &self.server,
+                                        &parsing::last_received_packet(*offset),
+                                    )
+                                    .await;
+                                }
+                                None => {
+                                    error!("packets_left empty, perhaps all packets received already");
+                                    self.end_connection().await;
+                                }
+                            }
+                                                    }
                         _ => self.connection.resend_to(&self.server).await,
                     }
                     continue;
