@@ -179,7 +179,9 @@ impl Connection {
             }
         }
         self.reset_n(ip);
-        self.reset_last_msg(ip);
+        if self.lastmsg.len() >= self.read_n(ip) {
+            self.reset_last_msg(ip);
+        }
     }
 
     async fn ask_resend_from_all(&mut self) {
