@@ -52,9 +52,13 @@ impl Server {
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Client asked for resend!");
                     match self.src_state_map.get(&src) {
-                        Some(ClientState::SendFile) => {
-                            //ask client to resend, this tricks it into sending the last packet size
-                            self.connection.send_to(&src, &parsing::get_primitive(PrimitiveMessage::RESEND)).await;
+                        Some(state) => {
+                            if *state == ClientState::SendFile {
+                                //ask client to resend, this tricks it into sending the last packet size
+                                self.connection.send_to(&src, &parsing::get_primitive(PrimitiveMessage::RESEND)).await;
+                            } else {
+                                self.connection.resend_to(&src).await;
+                            }
                         }
                         _ => self.connection.resend_to(&src).await,
                     }
