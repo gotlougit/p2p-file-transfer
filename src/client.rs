@@ -84,10 +84,8 @@ impl Client {
                     info!("Client exiting...");
                     break;
                 }
-            } else {
-                //retry again in next iteration of loop; we have already sent resend request
-                continue;
             }
+            //retry again in next iteration of loop; we have already sent resend request
         }
     }
 
