@@ -1,6 +1,6 @@
 //implements client object which is capable of handling one file from one server
 use memmap2::MmapMut;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs::{remove_file, File, OpenOptions};
 use std::io::{stdin, Seek, SeekFrom, Write};
 use std::net::SocketAddr;
@@ -20,8 +20,8 @@ pub struct Client {
     filesize: usize,
     state: ClientState,
     counter: usize,
-    packets_left: HashMap<usize, bool>,
-    packet_cache: HashMap<usize, Vec<u8>>,
+    packets_left: BTreeMap<usize, bool>,
+    packet_cache: BTreeMap<usize, Vec<u8>>,
     server: SocketAddr,
 }
 
@@ -46,8 +46,8 @@ pub fn init(
         filesize: 0,
         state: ClientState::NoState,
         counter: 0,
-        packets_left: HashMap::new(),
-        packet_cache: HashMap::new(),
+        packets_left: BTreeMap::new(),
+        packet_cache: BTreeMap::new(),
         server,
     };
     client_obj
@@ -71,7 +71,20 @@ impl Client {
                 //server wants client to resend
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Server asked for resend!");
-                    self.connection.resend_to(&self.server).await;
+                    //prevent asking for really old offsets and getting stuck in a loop
+                    match self.state {
+                        ClientState::SendFile => {
+                            //find latest offset that was never received
+                            let (offset, _) = self.packet_cache.iter().next_back().unwrap();
+                            self.connection
+                                .send_to(
+                                    &self.server,
+                                    &parsing::last_received_packet(offset + connection::DATA_SIZE),
+                                )
+                                .await;
+                        }
+                        _ => self.connection.resend_to(&self.server).await,
+                    }
                     continue;
                 }
                 if src != self.server {
