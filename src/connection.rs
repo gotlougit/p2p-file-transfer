@@ -165,6 +165,7 @@ impl Connection {
     }
 
     fn reset_last_msg(&mut self, ip: &SocketAddr) {
+        debug!("Resetting last messages for IP {}", ip);
         let emptyvec: Vec<Vec<u8>> = Vec::new();
         change_map_value::<SocketAddr, Vec<Vec<u8>>>(&mut self.lastmsg, *ip, emptyvec);
     }
