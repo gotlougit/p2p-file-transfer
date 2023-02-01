@@ -71,9 +71,8 @@ impl Client {
                 //server wants client to resend
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Server asked for resend!");
-                    dbg!("{}", &self.state);
                     //prevent asking for really old offsets and getting stuck in a loop
-                    if self.state == ClientState::SendFile {
+                    if self.state == ClientState::SendFile || self.state == ClientState::EndedConn || self.state == ClientState::EndConn {
                         //find latest offset that was never received
                         match self.packets_left.iter().next() {
                             Some((offset,_)) => {
