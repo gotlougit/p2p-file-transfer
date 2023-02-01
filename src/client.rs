@@ -71,27 +71,27 @@ impl Client {
                 //server wants client to resend
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Server asked for resend!");
+                    dbg!("{}", &self.state);
                     //prevent asking for really old offsets and getting stuck in a loop
-                    match self.state {
-                        ClientState::SendFile => {
-                            //find latest offset that was never received
-                            match self.packets_left.iter().next() {
-                                Some((offset,_)) => {
-                                    debug!("Asking server to send offset {} (part of resend req)", offset);
-                                    self.connection
-                                    .send_to(
-                                        &self.server,
-                                        &parsing::last_received_packet(*offset),
-                                    )
-                                    .await;
-                                }
-                                None => {
-                                    error!("packets_left empty, perhaps all packets received already");
-                                    self.end_connection().await;
-                                }
+                    if self.state == ClientState::SendFile {
+                        //find latest offset that was never received
+                        match self.packets_left.iter().next() {
+                            Some((offset,_)) => {
+                                debug!("Asking server to send offset {} (part of resend req)", offset);
+                                self.connection
+                                .send_to(
+                                    &self.server,
+                                    &parsing::last_received_packet(*offset),
+                                )
+                                .await;
                             }
-                                                    }
-                        _ => self.connection.resend_to(&self.server).await,
+                            None => {
+                                error!("packets_left empty, perhaps all packets received already");
+                                self.end_connection().await;
+                            }
+                        }
+                    } else {
+                        self.connection.resend_to(&self.server).await;
                     }
                     continue;
                 }

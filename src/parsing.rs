@@ -13,6 +13,7 @@ pub enum PrimitiveMessage {
 }
 
 //helps keep track of client states
+#[derive(PartialEq, Debug)]
 pub enum ClientState {
     NoState,
     ACKorNACK,
