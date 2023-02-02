@@ -11,8 +11,8 @@ use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
 //defines how small and large the sliding window can be
-const INITIAL_N: usize = 6;
-const MAX_N: usize = 75;
+const INITIAL_N: usize = 1;
+const MAX_N: usize = 255;
 
 //DIVIDER tells the maximum time that both machines will wait before initiating
 //NAT traversal
