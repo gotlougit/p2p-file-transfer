@@ -10,6 +10,8 @@ use tokio::time::timeout;
 
 use tracing::{debug, error, info, warn};
 
+use crate::parsing::{PrimitiveMessage, get_primitive};
+
 //defines how small and large the sliding window can be
 const INITIAL_N: usize = 1;
 const MAX_N: usize = 255;
@@ -188,7 +190,7 @@ impl Connection {
         warn!("Asking for resend from all IPs connected");
         let ipaddrs = self.get_ip_connected();
         for ip in ipaddrs {
-            self.resend_to(&ip).await;
+            self.basic_send_to(&ip, &get_primitive(PrimitiveMessage::RESEND)).await;
         }
     }
 
