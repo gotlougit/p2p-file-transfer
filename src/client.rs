@@ -37,8 +37,7 @@ pub fn init(
         .create(true)
         .open(file_to_get)
         .unwrap();
-
-    let client_obj = Client {
+    Client {
         connection: conn,
         file: fd,
         filename: file_to_get.to_string(),
@@ -49,8 +48,7 @@ pub fn init(
         packets_left: BTreeMap::new(),
         packet_cache: HashMap::new(),
         server,
-    };
-    client_obj
+    }
 }
 
 //one object which spins up tasks depending on what stage the server is at (first connection,
@@ -165,7 +163,7 @@ impl Client {
                             .seek(SeekFrom::Start(self.filesize as u64 - 1))
                             .unwrap();
                         self.file.write_all(&[0]).unwrap();
-                        self.file.seek(SeekFrom::Start(0)).unwrap();
+                        self.file.rewind().unwrap();
 
                         debug!("Sending ACK");
                         self.connection
