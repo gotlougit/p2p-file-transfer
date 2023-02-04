@@ -14,7 +14,7 @@ use crate::parsing::{get_primitive, PrimitiveMessage};
 
 //defines how small and large the sliding window can be
 const INITIAL_N: usize = 1;
-const MAX_N: usize = 255;
+const MAX_N: usize = 256;
 
 //DIVIDER tells the maximum time that both machines will wait before initiating
 //NAT traversal
