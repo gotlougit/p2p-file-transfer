@@ -1,6 +1,6 @@
 //implements client object which is capable of handling one file from one server
 use memmap2::MmapMut;
-use std::collections::BTreeMap;
+use std::collections::{HashMap, BTreeMap};
 use std::fs::{remove_file, File, OpenOptions};
 use std::io::{stdin, Seek, SeekFrom, Write};
 use std::net::SocketAddr;
@@ -21,7 +21,7 @@ pub struct Client {
     state: ClientState,
     counter: usize,
     packets_left: BTreeMap<usize, bool>,
-    packet_cache: BTreeMap<usize, Vec<u8>>,
+    packet_cache: HashMap<usize, Vec<u8>>,
     server: SocketAddr,
 }
 
@@ -47,7 +47,7 @@ pub fn init(
         state: ClientState::NoState,
         counter: 0,
         packets_left: BTreeMap::new(),
-        packet_cache: BTreeMap::new(),
+        packet_cache: HashMap::new(),
         server,
     };
     client_obj
