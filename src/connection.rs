@@ -97,10 +97,10 @@ impl Connection {
 
     fn add_ip_to_maps(&mut self, ip: &SocketAddr) {
         debug!("Adding IP {} to maps", ip);
-        if self.protocol_n.get(ip) == None {
+        if self.protocol_n.get(ip).is_none() {
             self.protocol_n.insert(*ip, INITIAL_N);
         }
-        if self.lastmsg.get(ip) == None {
+        if self.lastmsg.get(ip).is_none() {
             self.lastmsg.insert(*ip, Vec::new());
         }
     }
@@ -120,7 +120,7 @@ impl Connection {
     }
 
     fn reset_n(&mut self, ip: &SocketAddr) {
-        if let Some(_) = self.protocol_n.get(ip) {
+        if self.protocol_n.get(ip).is_some() {
             let n = &INITIAL_N;
             debug!("Reset N to {} for IP: {}", n, ip);
             change_map_value::<SocketAddr, usize>(&mut self.protocol_n, *ip, *n);
@@ -133,7 +133,7 @@ impl Connection {
     pub fn read_n(&mut self, ip: &SocketAddr) -> usize {
         if let Some(n) = self.protocol_n.get(ip) {
             debug!("Read N as {} for IP: {}", n, ip);
-            return *n;
+            *n
         } else {
             error!("N could not be read for IP {}, probably not in map", ip);
             self.add_ip_to_maps(ip);
@@ -143,8 +143,7 @@ impl Connection {
 
     //get current list of IP addresses connected
     fn get_ip_connected(&self) -> Vec<SocketAddr> {
-        let iplist = self.protocol_n.keys().cloned().collect::<Vec<SocketAddr>>();
-        return iplist;
+        self.protocol_n.keys().cloned().collect::<Vec<SocketAddr>>()
     }
 
     //deal with last messages for each IP
