@@ -121,9 +121,12 @@ impl Connection {
 
     fn reset_n(&mut self, ip: &SocketAddr) {
         if self.protocol_n.get(ip).is_some() {
-            let n = &INITIAL_N;
+            let mut n = self.read_n(ip)/2;
+            if n < INITIAL_N {
+                n = INITIAL_N;
+            }
             debug!("Reset N to {} for IP: {}", n, ip);
-            change_map_value::<SocketAddr, usize>(&mut self.protocol_n, *ip, *n);
+            change_map_value::<SocketAddr, usize>(&mut self.protocol_n, *ip, n);
         } else {
             error!("N could not be read for IP {}, probably not in map", ip);
             self.add_ip_to_maps(ip);
