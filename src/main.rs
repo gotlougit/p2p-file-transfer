@@ -23,7 +23,7 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
     let f = c.query_external_address_async(socket).await;
     match f {
         Ok(x) => {
-            info!("Program is externally at: {}", x);
+            println!("Program is externally at: {}", x);
             x
         }
         Err(_) => {
@@ -34,13 +34,13 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
 }
 
 async fn get_external_and_nat(socket: &UdpSocket) {
-    info!("Internal IP:port is {}", socket.local_addr().unwrap());
+    println!("Internal IP:port is {}", socket.local_addr().unwrap());
     let ip1 = get_external_info(&socket, "5.178.34.84:3478".to_string()).await;
     let ip2 = get_external_info(&socket, "stun2.l.google.com:19302".to_string()).await;
     if ip1 == ip2 {
-        info!("NAT is easy, can transfer files easily");
+        println!("NAT is easy, can transfer files easily");
     } else {
-        warn!("NAT is hard! Cannot transfer files over hard NAT!");
+        println!("NAT is hard! Cannot transfer files over hard NAT!");
     }
 }
 
