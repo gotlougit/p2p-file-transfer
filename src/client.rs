@@ -1,6 +1,6 @@
 //implements client object which is capable of handling one file from one server
 use memmap2::MmapMut;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{remove_file, File, OpenOptions};
 use std::io::{stdin, Seek, SeekFrom, Write};
 use std::net::SocketAddr;
@@ -70,17 +70,20 @@ impl Client {
                 if parsing::parse_primitive(&buffer, amt) == PrimitiveMessage::RESEND {
                     warn!("Server asked for resend!");
                     //prevent asking for really old offsets and getting stuck in a loop
-                    if self.state == ClientState::SendFile || self.state == ClientState::EndedConn || self.state == ClientState::EndConn {
+                    if self.state == ClientState::SendFile
+                        || self.state == ClientState::EndedConn
+                        || self.state == ClientState::EndConn
+                    {
                         //find latest offset that was never received
                         match self.packets_left.iter().next() {
-                            Some((offset,_)) => {
-                                debug!("Asking server to send offset {} (part of resend req)", offset);
+                            Some((offset, _)) => {
+                                debug!(
+                                    "Asking server to send offset {} (part of resend req)",
+                                    offset
+                                );
                                 self.connection
-                                .send_to(
-                                    &self.server,
-                                    &parsing::last_received_packet(*offset),
-                                )
-                                .await;
+                                    .send_to(&self.server, &parsing::last_received_packet(*offset))
+                                    .await;
                             }
                             None => {
                                 error!("packets_left empty, perhaps all packets received already");

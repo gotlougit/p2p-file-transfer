@@ -13,11 +13,7 @@ mod server;
 
 //TODO: create control plane which will replace calling STUN servers
 async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
-    let stun_addr = ip
-        .to_socket_addrs()
-        .unwrap()
-        .find(|x| x.is_ipv4())
-        .unwrap();
+    let stun_addr = ip.to_socket_addrs().unwrap().find(|x| x.is_ipv4()).unwrap();
     let c = StunClient::new(stun_addr);
     let f = c.query_external_address_async(socket).await;
     match f {

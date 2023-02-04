@@ -54,7 +54,12 @@ impl Server {
                         Some(state) => {
                             if *state == ClientState::SendFile {
                                 //ask client to resend, this tricks it into sending the last packet size
-                                self.connection.send_to(&src, &parsing::get_primitive(PrimitiveMessage::RESEND)).await;
+                                self.connection
+                                    .send_to(
+                                        &src,
+                                        &parsing::get_primitive(PrimitiveMessage::RESEND),
+                                    )
+                                    .await;
                             } else {
                                 self.connection.resend_to(&src).await;
                             }
