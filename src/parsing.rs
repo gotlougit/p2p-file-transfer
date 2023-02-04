@@ -81,25 +81,25 @@ pub fn parse_primitive(message: &[u8], amt: usize) -> PrimitiveMessage {
                 return PrimitiveMessage::END;
             }
             error!("Parsed invalid primitive message");
-            return PrimitiveMessage::INVALID;
+            PrimitiveMessage::INVALID
         }
         4 => {
             if message[..4] == NACK {
                 debug!("Parsed NACK");
                 return PrimitiveMessage::NACK;
             }
-            return PrimitiveMessage::INVALID;
+            PrimitiveMessage::INVALID
         }
         6 => {
             if message[..6] == RESEND {
                 debug!("Parsed RESEND");
                 return PrimitiveMessage::RESEND;
             }
-            return PrimitiveMessage::INVALID;
+            PrimitiveMessage::INVALID
         }
         _ => {
             error!("Parsed invalid primitive message");
-            return PrimitiveMessage::INVALID;
+            PrimitiveMessage::INVALID
         }
     }
 }
