@@ -29,14 +29,13 @@ pub fn init(connection: connection::Connection, filename: String, authtoken: Str
     unsafe {
         let mmap = Mmap::map(&fd).unwrap();
         let filesize = mmap.len();
-        let server_obj = Server {
+        Server {
             connection,
             data: mmap,
             size_msg: parsing::filesize_packet(filesize),
             src_state_map: HashMap::new(),
             authchecker: auth::init(authtoken, filename),
-        };
-        server_obj
+        }
     }
 }
 
@@ -78,13 +77,13 @@ impl Server {
             //we are already communicating with client
             match curstate {
                 ClientState::NoState => {
-                    self.initiate_transfer_server(&src, message, amt).await;
+                    self.initiate_transfer_server(src, message, amt).await;
                 }
                 ClientState::ACKorNACK => {
-                    self.check_ack_or_nack(&src, message, amt).await;
+                    self.check_ack_or_nack(src, message, amt).await;
                 }
                 ClientState::SendFile => {
-                    self.send_data_in_chunks(&src, message, amt).await;
+                    self.send_data_in_chunks(src, message, amt).await;
                 }
                 ClientState::EndConn => {
                     if parsing::parse_primitive(&message[..], amt) == PrimitiveMessage::END {
@@ -99,11 +98,11 @@ impl Server {
                         PrimitiveMessage::RESEND => {
                             //doubtful this ever executes
                             warn!("Client may not have received last part of file! Sending last chunk...");
-                            let n = self.connection.read_n(&src);
+                            let n = self.connection.read_n(src);
                             let offset = self.data.len() - connection::DATA_SIZE * n;
-                            self.send_n_chunks(&src, offset).await;
+                            self.send_n_chunks(src, offset).await;
                         }
-                        _ => self.send_data_in_chunks(&src, message, amt).await,
+                        _ => self.send_data_in_chunks(src, message, amt).await,
                     }
                 }
             }
@@ -118,7 +117,7 @@ impl Server {
     async fn end_connection(&mut self, src: &SocketAddr) {
         info!("Sending END (permanent end to connection) to {}", src);
         self.connection
-            .send_to(&src, &parsing::get_primitive(PrimitiveMessage::END))
+            .send_to(src, &parsing::get_primitive(PrimitiveMessage::END))
             .await;
         self.src_state_map.remove(src);
     }
@@ -126,7 +125,7 @@ impl Server {
     async fn end_connection_with_resend(&mut self, src: &SocketAddr) {
         info!("Sending END (with resend allowed) to {}", src);
         self.connection
-            .send_to(&src, &parsing::get_primitive(PrimitiveMessage::END))
+            .send_to(src, &parsing::get_primitive(PrimitiveMessage::END))
             .await;
         change_map_value::<SocketAddr, ClientState>(
             &mut self.src_state_map,
@@ -145,7 +144,7 @@ impl Server {
             //send size of data
             info!("Client authentication check succeeded...");
             debug!("Sending client size of file");
-            self.connection.send_to(&src, &self.size_msg).await;
+            self.connection.send_to(src, &self.size_msg).await;
             info!("Awaiting response from client...");
             change_map_value::<SocketAddr, ClientState>(
                 &mut self.src_state_map,
@@ -157,7 +156,7 @@ impl Server {
             error!("Client was not able to be authenticated!");
             debug!("Sending 0 size file...");
             self.connection
-                .send_to(&src, &parsing::filesize_packet(0))
+                .send_to(src, &parsing::filesize_packet(0))
                 .await;
             //end connection
             self.end_connection(src).await;
@@ -207,7 +206,7 @@ impl Server {
         debug!("Sending a chunk...");
         let packet = self.data[offset..offset + len].to_vec();
         self.connection
-            .send_to(&src, &parsing::data_packet(offset, &packet))
+            .send_to(src, &parsing::data_packet(offset, &packet))
             .await;
         if end_afterwards {
             info!("File sent completely");
@@ -217,7 +216,7 @@ impl Server {
 
     async fn send_n_chunks(&mut self, src: &SocketAddr, offset: usize) {
         let mut offset = offset;
-        let n = self.connection.read_n(&src);
+        let n = self.connection.read_n(src);
         for _ in 0..n {
             self.send_one_chunk(src, offset).await;
             offset += connection::DATA_SIZE;
