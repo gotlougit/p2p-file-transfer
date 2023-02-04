@@ -195,7 +195,7 @@ impl Client {
                 false
             }
             ClientState::SendFile => {
-                println!("Client has to receive the file");
+                info!("Client has to receive the file");
                 if parsing::parse_primitive(&message[..], size) == PrimitiveMessage::END
                     && self.packets_left.is_empty()
                 {
@@ -249,7 +249,7 @@ impl Client {
         if let Some((offset, data)) = parsing::parse_data_packet(&message[..], size) {
             if self.packets_left.get(&offset).is_none() {
                 //already been received, assume we already have it inside memory
-                println!("Got already received packet");
+                info!("Got already received packet");
             } else {
                 //get rid of received packet from HashMap
                 self.packets_left.remove(&offset);
