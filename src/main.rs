@@ -16,14 +16,13 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
     let stun_addr = ip
         .to_socket_addrs()
         .unwrap()
-        .filter(|x| x.is_ipv4())
-        .next()
+        .find(|x| x.is_ipv4())
         .unwrap();
     let c = StunClient::new(stun_addr);
     let f = c.query_external_address_async(socket).await;
     match f {
         Ok(x) => {
-            println!("Program is externally at: {}", x);
+            println!("Program is externally at: {x}");
             x
         }
         Err(_) => {
@@ -35,8 +34,8 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
 
 async fn get_external_and_nat(socket: &UdpSocket) {
     println!("Internal IP:port is {}", socket.local_addr().unwrap());
-    let ip1 = get_external_info(&socket, "5.178.34.84:3478".to_string()).await;
-    let ip2 = get_external_info(&socket, "stun2.l.google.com:19302".to_string()).await;
+    let ip1 = get_external_info(socket, "5.178.34.84:3478".to_string()).await;
+    let ip2 = get_external_info(socket, "stun2.l.google.com:19302".to_string()).await;
     if ip1 == ip2 {
         println!("NAT is easy, can transfer files easily");
     } else {
@@ -47,21 +46,18 @@ async fn get_external_and_nat(socket: &UdpSocket) {
 fn get_other_ip(message: String) -> SocketAddr {
     //get client's external IP and port
     //TODO: add control plane which will automate this to support multiple clients
-    println!("{}", message);
+    println!("{message}");
     let stdin = io::stdin();
     let mut other_interface = String::new();
     stdin
         .read_line(&mut other_interface)
         .expect("Couldn't read from stdin");
     let other_int = other_interface[..other_interface.len() - 1].to_string();
-    let om = &other_int
-        .to_string()
+    other_int
         .to_socket_addrs()
         .unwrap()
-        .filter(|x| x.is_ipv4())
-        .next()
-        .unwrap();
-    *om
+        .find(|x| x.is_ipv4())
+        .unwrap()
 }
 
 async fn serve(filename: &String, authtoken: &String) {
