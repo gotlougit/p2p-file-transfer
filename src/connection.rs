@@ -121,7 +121,7 @@ impl Connection {
 
     fn reset_n(&mut self, ip: &SocketAddr) {
         if self.protocol_n.get(ip).is_some() {
-            let mut n = self.read_n(ip)/2;
+            let mut n = self.read_n(ip) / 2;
             if n < INITIAL_N {
                 n = INITIAL_N;
             }
