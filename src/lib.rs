@@ -1,8 +1,13 @@
 mod parsing;
+mod socket;
 
 #[cfg(test)]
 mod test {
+    use std::net::SocketAddr;
+    use std::str::FromStr;
+
     use crate::parsing::*;
+    use crate::socket::*;
 
     #[test]
     fn parsing_test_primitives() {
@@ -126,6 +131,51 @@ mod test {
         if let Some((parsedoffset3, parseddata3)) = result3 {
             assert_eq!(parsedoffset3, offset3);
             assert_eq!(parseddata3, data3);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_socket() {
+        let dum1 = DummySocket {
+            send_proper: false,
+            recv_proper: false,
+        };
+        let dum2 = DummySocket {
+            send_proper: true,
+            recv_proper: true,
+        };
+        let dum3 = DummySocket {
+            send_proper: true,
+            recv_proper: false,
+        };
+        let msg = *b"Hello world";
+        let ip1 = SocketAddr::from_str("127.0.0.1:1026").unwrap();
+        let result1 = dum1.send_to(&msg[..], &ip1).await;
+        match result1 {
+            Ok(size) => {
+                assert_eq!(size,0);
+            }
+            Err(_) => {
+                assert_eq!(1,2);
+            }
+        }
+        let result2 = dum2.send_to(&msg[..], &ip1).await;
+        match result2 {
+            Ok(size) => {
+                assert_eq!(size,msg.len());
+            }
+            Err(_) => {
+                assert_eq!(2,3);
+            }
+        }
+        let result3 = dum3.send_to(&msg[..], &ip1).await;
+        match result3 {
+            Ok(size) => {
+                assert_eq!(size,msg.len());
+            }
+            Err(_) => {
+                assert_eq!(3,4);
+            }
         }
     }
 }
