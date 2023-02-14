@@ -30,7 +30,7 @@ impl Socket for ActualSocket {
 
 #[async_trait]
 impl Socket for DummySocket {
-    async fn send_to<'a>(&self, message: &[u8], src: &SocketAddr) -> Result<usize, Error> {
+    async fn send_to<'a>(&self, message: &[u8], _src: &SocketAddr) -> Result<usize, Error> {
         if self.send_proper {
             Ok(message.len())
         } else {
