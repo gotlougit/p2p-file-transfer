@@ -39,8 +39,9 @@ impl Socket for DummySocket {
     }
     async fn recv_from(&self, message: &mut [u8]) -> Result<(usize, SocketAddr), Error> {
         if self.recv_proper {
+            message[0] = 1;
             Ok((
-                message.len(),
+                1,
                 SocketAddr::from_str("127.0.0.1:1025").unwrap(),
             ))
         } else {
