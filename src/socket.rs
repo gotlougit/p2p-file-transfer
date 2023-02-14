@@ -8,8 +8,8 @@ pub struct ActualSocket {
 }
 
 pub struct DummySocket {
-    send_proper: bool,
-    recv_proper: bool,
+    pub send_proper: bool,
+    pub recv_proper: bool,
 }
 
 #[async_trait]
