@@ -1,5 +1,6 @@
 mod parsing;
 mod socket;
+mod connection;
 
 #[cfg(test)]
 mod test {
@@ -8,6 +9,7 @@ mod test {
 
     use crate::parsing::*;
     use crate::socket::*;
+    use crate::connection::MTU;
 
     #[test]
     fn parsing_test_primitives() {
@@ -135,7 +137,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_socket() {
+    async fn test_dummy_socket() {
         let dum1 = DummySocket {
             send_proper: false,
             recv_proper: false,
@@ -150,31 +152,60 @@ mod test {
         };
         let msg = *b"Hello world";
         let ip1 = SocketAddr::from_str("127.0.0.1:1026").unwrap();
-        let result1 = dum1.send_to(&msg[..], &ip1).await;
-        match result1 {
+        //test sending
+        match dum1.send_to(&msg[..], &ip1).await {
             Ok(size) => {
-                assert_eq!(size,0);
+                assert_eq!(size, 0);
             }
             Err(_) => {
-                assert_eq!(1,2);
+                assert_eq!(1, 2);
             }
         }
-        let result2 = dum2.send_to(&msg[..], &ip1).await;
-        match result2 {
+        match dum2.send_to(&msg[..], &ip1).await {
             Ok(size) => {
-                assert_eq!(size,msg.len());
+                assert_eq!(size, msg.len());
             }
             Err(_) => {
-                assert_eq!(2,3);
+                assert_eq!(2, 3);
             }
         }
-        let result3 = dum3.send_to(&msg[..], &ip1).await;
-        match result3 {
+        match dum3.send_to(&msg[..], &ip1).await {
             Ok(size) => {
-                assert_eq!(size,msg.len());
+                assert_eq!(size, msg.len());
             }
             Err(_) => {
-                assert_eq!(3,4);
+                assert_eq!(3, 4);
+            }
+        }
+        //test receiving
+        let mut buf = [0u8;MTU];
+        match dum1.recv_from(&mut buf).await {
+            Ok((size, _)) => {
+                assert_eq!(size, 0);
+                assert_eq!(buf[0], 0);
+            }
+            Err(_) => {
+                assert_eq!(1, 2);
+            }
+        }
+        buf[0] = 0;
+        match dum2.recv_from(&mut buf).await {
+            Ok((size, _)) => {
+                assert_eq!(size, 1);
+                assert_eq!(buf[0], 1);
+            }
+            Err(_) => {
+                assert_eq!(2, 3);
+            }
+        }
+        buf[0] = 0;
+        match dum3.recv_from(&mut buf).await {
+            Ok((size, _)) => {
+                assert_eq!(size, 0);
+                assert_eq!(buf[0], 0);
+            }
+            Err(_) => {
+                assert_eq!(3, 4);
             }
         }
     }
