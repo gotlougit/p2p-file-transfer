@@ -10,16 +10,21 @@ use crate::connection;
 use crate::connection::change_map_value;
 use crate::parsing;
 use crate::parsing::{ClientState, PrimitiveMessage};
+use crate::socket::Socket;
 
-pub struct Server {
-    connection: connection::Connection,
+pub struct Server<T: Socket> {
+    connection: connection::Connection<T>,
     data: Mmap,
     size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, ClientState>,
     authchecker: auth::AuthChecker,
 }
 
-pub fn init(connection: connection::Connection, filename: String, authtoken: String) -> Server {
+pub fn init<T: Socket>(
+    connection: connection::Connection<T>,
+    filename: String,
+    authtoken: String,
+) -> Server<T> {
     let fd = OpenOptions::new()
         .read(true)
         .write(false)
@@ -42,7 +47,7 @@ pub fn init(connection: connection::Connection, filename: String, authtoken: Str
 //one object which spins up tasks depending on what stage the client is at (first connection,
 //deciding to get file, receiving file etc)
 //TODO: have server be able to serve multiple files on demand
-impl Server {
+impl<T: Socket> Server<T> {
     pub async fn mainloop(&mut self) {
         loop {
             let mut buffer = [0u8; connection::MTU];

@@ -5,12 +5,12 @@ use std::net::SocketAddr;
 use std::thread;
 use std::time::SystemTime;
 use std::time::{Duration, UNIX_EPOCH};
-use tokio::net::UdpSocket;
 use tokio::time::timeout;
 
 use tracing::{debug, error, info, warn};
 
 use crate::parsing::{get_primitive, PrimitiveMessage};
+use crate::socket::Socket;
 
 //defines how small and large the sliding window can be
 const INITIAL_N: usize = 1;
@@ -44,15 +44,15 @@ where
 }
 
 //main abstraction to handle connections
-pub struct Connection {
-    socket: UdpSocket,
+pub struct Connection<T: Socket> {
+    socket: T,
     protocol_n: HashMap<SocketAddr, usize>,
     encryption_token: HashMap<SocketAddr, String>,
     lastmsg: HashMap<SocketAddr, Vec<Vec<u8>>>,
 }
 
-pub fn init_conn(socket: UdpSocket) -> Connection {
-    Connection {
+pub fn init_conn<T: Socket>(socket: T) -> Connection<T> {
+    Connection::<T> {
         socket,
         protocol_n: HashMap::new(),
         encryption_token: HashMap::new(),
@@ -60,7 +60,7 @@ pub fn init_conn(socket: UdpSocket) -> Connection {
     }
 }
 
-impl Connection {
+impl<T: Socket> Connection<T> {
     //helps sync NAT traversal
     pub fn sync_nat_traversal(&self) {
         //wait till some common time

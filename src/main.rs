@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::env;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -10,6 +12,7 @@ mod client;
 mod connection;
 mod parsing;
 mod server;
+mod socket;
 
 //TODO: create control plane which will replace calling STUN servers
 async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
@@ -73,14 +76,20 @@ async fn serve(filename: &String, authtoken: &String) {
     //get client's external IP and port
     let client_int = get_other_ip("Enter client IP:".to_string());
 
-    let connection = connection::init_conn(socket);
+    let wrappersocket = socket::ActualSocket { socket };
+
+    let connection = connection::init_conn::<socket::ActualSocket>(wrappersocket);
 
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
     connection.sync_nat_traversal();
     connection.init_nat_traversal(&client_int).await;
 
     //construct Server object
-    let mut server_obj = server::init(connection, filename.to_string(), authtoken.to_string());
+    let mut server_obj = server::init::<socket::ActualSocket>(
+        connection,
+        filename.to_string(),
+        authtoken.to_string(),
+    );
 
     //main loop which listens for connections and serves data depending on stage
     server_obj.mainloop().await;
@@ -99,7 +108,9 @@ async fn client(file_to_get: &String, authtoken: &String) {
     //get server's external IP and port
     let server_int = get_other_ip("Enter server IP:".to_string());
 
-    let connection = connection::init_conn(socket);
+    let wrappersocket = socket::ActualSocket { socket };
+
+    let connection = connection::init_conn::<socket::ActualSocket>(wrappersocket);
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
     connection.sync_nat_traversal();
     connection.init_nat_traversal(&server_int).await;

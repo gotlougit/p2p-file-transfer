@@ -9,11 +9,12 @@ use std::process::exit;
 use crate::connection;
 use crate::parsing;
 use crate::parsing::{ClientState, PrimitiveMessage};
+use crate::socket::Socket;
 
 use tracing::{debug, error, info, warn};
 
-pub struct Client {
-    connection: connection::Connection,
+pub struct Client<T: Socket> {
+    connection: connection::Connection<T>,
     file: File,
     filename: String,
     authtoken: String,
@@ -25,19 +26,19 @@ pub struct Client {
     server: SocketAddr,
 }
 
-pub fn init(
-    conn: connection::Connection,
+pub fn init<T: Socket>(
+    conn: connection::Connection<T>,
     file_to_get: &String,
     authtoken: &String,
     server: SocketAddr,
-) -> Client {
+) -> Client<T> {
     let fd = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .open(file_to_get)
         .unwrap();
-    Client {
+    Client::<T> {
         connection: conn,
         file: fd,
         filename: file_to_get.to_string(),
@@ -53,7 +54,7 @@ pub fn init(
 
 //one object which spins up tasks depending on what stage the server is at (first connection,
 //deciding to get file, receiving file etc)
-impl Client {
+impl<T: Socket> Client<T> {
     //initialize connection to server
     pub async fn init_connection(&mut self) {
         info!("Client has new connection to make!");
