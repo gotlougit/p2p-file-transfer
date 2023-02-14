@@ -203,8 +203,8 @@ pub fn data_packet(offset: usize, message: &Vec<u8>) -> Vec<u8> {
 
 pub fn parse_data_packet(message: &[u8], amt: usize) -> Option<(usize, Vec<u8>)> {
     let mut sizeofheader = 0;
-    for i in 0..amt {
-        if message[i] == 10 {
+    for (i,j) in message.iter().enumerate().take(amt) {
+        if *j == 10 {
             sizeofheader = i + 1;
             break;
         }

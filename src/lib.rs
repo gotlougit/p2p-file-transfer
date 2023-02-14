@@ -1,15 +1,15 @@
+mod connection;
 mod parsing;
 mod socket;
-mod connection;
 
 #[cfg(test)]
 mod test {
     use std::net::SocketAddr;
     use std::str::FromStr;
 
+    use crate::connection::MTU;
     use crate::parsing::*;
     use crate::socket::*;
-    use crate::connection::MTU;
 
     #[test]
     fn parsing_test_primitives() {
@@ -178,7 +178,7 @@ mod test {
             }
         }
         //test receiving
-        let mut buf = [0u8;MTU];
+        let mut buf = [0u8; MTU];
         match dum1.recv_from(&mut buf).await {
             Ok((size, _)) => {
                 assert_eq!(size, 0);
