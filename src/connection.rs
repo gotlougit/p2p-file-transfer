@@ -20,10 +20,6 @@ const MAX_N: usize = 256;
 //NAT traversal
 const DIVIDER: u64 = 15;
 
-//amount of time each machine waits before declaring a timeout and initiating
-//RESEND
-const MAX_WAIT_TIME: Duration = Duration::from_secs(3);
-
 //MTU: maximum raw info in one packet
 pub const MTU: usize = 1280;
 //DATA_SIZE: amount of file each packet will contain
@@ -49,6 +45,9 @@ pub struct Connection<T: Socket> {
     protocol_n: HashMap<SocketAddr, usize>,
     encryption_token: HashMap<SocketAddr, String>,
     lastmsg: HashMap<SocketAddr, Vec<Vec<u8>>>,
+    //amount of time each machine waits before declaring a timeout and initiating
+    //RESEND
+    max_wait_time: Duration,
 }
 
 pub fn init_conn<T: Socket>(socket: T) -> Connection<T> {
@@ -57,6 +56,7 @@ pub fn init_conn<T: Socket>(socket: T) -> Connection<T> {
         protocol_n: HashMap::new(),
         encryption_token: HashMap::new(),
         lastmsg: HashMap::new(),
+        max_wait_time: Duration::from_millis(500)
     }
 }
 
@@ -75,14 +75,19 @@ impl<T: Socket> Connection<T> {
     }
 
     //sends dummy packets to other machine and returns connection state
-    pub async fn init_nat_traversal(&self, ip: &SocketAddr) -> bool {
+    pub async fn init_nat_traversal(&mut self, ip: &SocketAddr) -> bool {
         let mut connected = false;
         let dummymsg = *b"HELLOWORLD";
         for _ in 0..DUMMY_MSG_NUM {
             self.basic_send_to(ip, &dummymsg).await;
             let mut buf = [0u8; MTU];
+            //let t1 = Instant::now();
+            //self.basic_recv(&mut buf).await;
+            //let t2 = Instant::now();
+            //latencies[i] = t2 - t1;
+            //info!("Set MAX_WAIT_TIME to {:?}", self.max_wait_time);
             let recv_future = self.basic_recv(&mut buf);
-            match timeout(MAX_WAIT_TIME, recv_future).await {
+            match timeout(self.max_wait_time, recv_future).await {
                 Ok((_, src)) => {
                     connected = connected || src == *ip;
                     info!("Seemed to get data from {}", src);
@@ -206,8 +211,9 @@ impl<T: Socket> Connection<T> {
 
     //like recv() but implements one timeout
     pub async fn reliable_recv(&mut self, buffer: &mut [u8; MTU]) -> Option<(usize, SocketAddr)> {
+        let time = self.max_wait_time;
         let future = self.recv(buffer);
-        if let Ok((amt, src)) = timeout(MAX_WAIT_TIME, future).await {
+        if let Ok((amt, src)) = timeout(time, future).await {
             debug!("Received packet in time");
             Some((amt, src))
         } else {
