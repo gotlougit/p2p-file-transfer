@@ -78,7 +78,7 @@ async fn serve(filename: &String, authtoken: &String) {
 
     let wrappersocket = socket::ActualSocket { socket };
 
-    let connection = connection::init_conn::<socket::ActualSocket>(wrappersocket);
+    let mut connection = connection::init_conn::<socket::ActualSocket>(wrappersocket);
 
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
     connection.sync_nat_traversal();
@@ -110,7 +110,7 @@ async fn client(file_to_get: &String, authtoken: &String) {
 
     let wrappersocket = socket::ActualSocket { socket };
 
-    let connection = connection::init_conn::<socket::ActualSocket>(wrappersocket);
+    let mut connection = connection::init_conn::<socket::ActualSocket>(wrappersocket);
     //wait 5 seconds, try connecting to server, then wait 5 more seconds
     connection.sync_nat_traversal();
     connection.init_nat_traversal(&server_int).await;
