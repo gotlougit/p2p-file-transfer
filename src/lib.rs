@@ -10,6 +10,7 @@ mod test {
     use crate::connection::MTU;
     use crate::parsing::*;
     use crate::socket::*;
+    use crate::connection;
 
     #[test]
     fn parsing_test_primitives() {
@@ -208,5 +209,31 @@ mod test {
                 assert_eq!(3, 4);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_dummy_connection() {
+        let dum1 = DummySocket {
+            send_proper: false,
+            recv_proper: false,
+        };
+        let dum2 = DummySocket {
+            send_proper: true,
+            recv_proper: true,
+        };
+        let dum3 = DummySocket {
+            send_proper: true,
+            recv_proper: false,
+        };
+        let mut conn1 = connection::init_conn::<DummySocket>(dum1);
+        let mut conn2 = connection::init_conn::<DummySocket>(dum2);
+        let mut conn3 = connection::init_conn::<DummySocket>(dum3);
+
+        let msg = *b"Hello world";
+        let ip1 = SocketAddr::from_str("127.0.0.1:1026").unwrap();
+
+        conn1.send_to(&ip1, &msg).await;
+        conn2.send_to(&ip1, &msg).await;
+        conn3.send_to(&ip1, &msg).await;
     }
 }
