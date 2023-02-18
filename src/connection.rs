@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::thread;
 use std::time::SystemTime;
 use std::time::{Duration, UNIX_EPOCH};
@@ -239,12 +240,21 @@ impl<T: Socket> Connection<T> {
     }
 
     async fn basic_recv(&self, buffer: &mut [u8; MTU]) -> (usize, SocketAddr) {
-        let (amt, src) = self
+        //TODO: return a Result instead
+        match self
             .socket
             .recv_from(&mut buffer[..])
-            .await
-            .expect("A recv error occurred!");
-        //TODO: use encryption_token to decrypt message after recv call is complete
-        (amt, src)
+            .await {
+                Ok((amt,src)) => {
+                    //TODO: use encryption_token to decrypt message after recv call is complete
+                    (amt,src)
+                }
+                Err(e) => {
+                    error!("Error while receiving: {}", e);
+                    let dummyamt : usize = 0;
+                    let dummyip = SocketAddr::from_str("127.0.0.253:80").unwrap();
+                    (dummyamt, dummyip)
+                }
+            }
     }
 }
