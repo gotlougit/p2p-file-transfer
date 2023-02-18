@@ -22,6 +22,8 @@ Both the client and server have async network request support.
 
 - A very very basic level of support for authentication and authorization. This will become more important after encryption is implemented and the program is ready for general usage.
 
+- Tests for the protocol and raw networking code using a dummy socket interface to avoid creating separate OS sockets and complicating things
+
 ## Goals
 
 - Encryption: almost every single communication should be completely encrypted, so there is no way to tell what file is being transferred.
@@ -38,4 +40,4 @@ Alpha: I am basically learning network programming through this. This is in NO w
 
 Right now, it is able to make direct connections through easy NAT and transfer one file from one machine (called a server) to another machine (called a client) over the Internet.
 
-Thanks to implementing Go Back N (albeit not in a traditional fashion), it is able to send files with fairly good speeds.
+Thanks to implementing Go Back N (albeit not in a traditional fashion), it is able to send files with fairly good speeds, although this does need major improvements
