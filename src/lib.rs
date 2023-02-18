@@ -141,17 +141,17 @@ mod test {
         let dum1 = DummySocket {
             send_proper: false,
             recv_proper: false,
-            recv_ontime: true
+            recv_ontime: true,
         };
         let dum2 = DummySocket {
             send_proper: true,
             recv_proper: true,
-            recv_ontime: true
+            recv_ontime: true,
         };
         let dum3 = DummySocket {
             send_proper: true,
             recv_proper: false,
-            recv_ontime: false
+            recv_ontime: false,
         };
         (dum1, dum2, dum3)
     }
@@ -256,5 +256,19 @@ mod test {
         conn1.send_to(&ip1, &msg).await;
         conn2.send_to(&ip1, &msg).await;
         conn3.send_to(&ip1, &msg).await;
+
+        let mut buf = [0u8; MTU];
+        match conn1.reliable_recv(&mut buf).await {
+            Some(_) => assert_eq!(1, 1),
+            None => assert_eq!(1, 2),
+        };
+        match conn2.reliable_recv(&mut buf).await {
+            Some(_) => assert_eq!(2, 2),
+            None => assert_eq!(2, 3),
+        };
+        match conn3.reliable_recv(&mut buf).await {
+            Some(_) => assert_eq!(3, 4),
+            None => assert_eq!(3, 3),
+        };
     }
 }
