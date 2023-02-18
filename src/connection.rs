@@ -2,7 +2,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::net::SocketAddr;
-use std::str::FromStr;
 use std::thread;
 use std::time::SystemTime;
 use std::time::{Duration, UNIX_EPOCH};
@@ -89,10 +88,13 @@ impl<T: Socket> Connection<T> {
             //info!("Set MAX_WAIT_TIME to {:?}", self.max_wait_time);
             let recv_future = self.basic_recv(&mut buf);
             match timeout(self.max_wait_time, recv_future).await {
-                Ok((_, src)) => {
-                    connected = connected || src == *ip;
-                    info!("Seemed to get data from {}", src);
-                }
+                Ok(res) => match res {
+                    Ok((_, src)) => {
+                        connected = connected || src == *ip;
+                        info!("Seemed to get data from {}", src);
+                    }
+                    Err(_) => warn!("A socket error occurred"),
+                },
                 Err(_) => {
                     warn!("Did not receive any data, retrying...");
                 }
@@ -214,7 +216,7 @@ impl<T: Socket> Connection<T> {
     pub async fn reliable_recv(&mut self, buffer: &mut [u8; MTU]) -> Option<(usize, SocketAddr)> {
         let time = self.max_wait_time;
         let future = self.recv(buffer);
-        if let Ok((amt, src)) = timeout(time, future).await {
+        if let Ok(Ok((amt, src))) = timeout(time, future).await {
             debug!("Received packet in time");
             Some((amt, src))
         } else {
@@ -224,10 +226,17 @@ impl<T: Socket> Connection<T> {
         }
     }
 
-    pub async fn recv(&mut self, buffer: &mut [u8; MTU]) -> (usize, SocketAddr) {
-        let (amt, src) = self.basic_recv(buffer).await;
-        self.grow_n(&src);
-        (amt, src)
+    pub async fn recv(
+        &mut self,
+        buffer: &mut [u8; MTU],
+    ) -> Result<(usize, SocketAddr), std::io::Error> {
+        match self.basic_recv(buffer).await {
+            Ok((amt, src)) => {
+                self.grow_n(&src);
+                Ok((amt, src))
+            }
+            Err(e) => Err(e),
+        }
     }
 
     //basic send and recv wrappers
@@ -239,19 +248,17 @@ impl<T: Socket> Connection<T> {
         }
     }
 
-    async fn basic_recv(&self, buffer: &mut [u8; MTU]) -> (usize, SocketAddr) {
+    async fn basic_recv(
+        &self,
+        buffer: &mut [u8; MTU],
+    ) -> Result<(usize, SocketAddr), std::io::Error> {
         //TODO: return a Result instead
         match self.socket.recv_from(&mut buffer[..]).await {
             Ok((amt, src)) => {
                 //TODO: use encryption_token to decrypt message after recv call is complete
-                (amt, src)
+                Ok((amt, src))
             }
-            Err(e) => {
-                error!("Error while receiving: {}", e);
-                let dummyamt: usize = 0;
-                let dummyip = SocketAddr::from_str("127.0.0.253:80").unwrap();
-                (dummyamt, dummyip)
-            }
+            Err(e) => Err(e),
         }
     }
 }
