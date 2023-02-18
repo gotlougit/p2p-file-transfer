@@ -241,20 +241,17 @@ impl<T: Socket> Connection<T> {
 
     async fn basic_recv(&self, buffer: &mut [u8; MTU]) -> (usize, SocketAddr) {
         //TODO: return a Result instead
-        match self
-            .socket
-            .recv_from(&mut buffer[..])
-            .await {
-                Ok((amt,src)) => {
-                    //TODO: use encryption_token to decrypt message after recv call is complete
-                    (amt,src)
-                }
-                Err(e) => {
-                    error!("Error while receiving: {}", e);
-                    let dummyamt : usize = 0;
-                    let dummyip = SocketAddr::from_str("127.0.0.253:80").unwrap();
-                    (dummyamt, dummyip)
-                }
+        match self.socket.recv_from(&mut buffer[..]).await {
+            Ok((amt, src)) => {
+                //TODO: use encryption_token to decrypt message after recv call is complete
+                (amt, src)
             }
+            Err(e) => {
+                error!("Error while receiving: {}", e);
+                let dummyamt: usize = 0;
+                let dummyip = SocketAddr::from_str("127.0.0.253:80").unwrap();
+                (dummyamt, dummyip)
+            }
+        }
     }
 }
