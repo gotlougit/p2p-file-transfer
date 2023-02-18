@@ -141,14 +141,17 @@ mod test {
         let dum1 = DummySocket {
             send_proper: false,
             recv_proper: false,
+            recv_ontime: true
         };
         let dum2 = DummySocket {
             send_proper: true,
             recv_proper: true,
+            recv_ontime: true
         };
         let dum3 = DummySocket {
             send_proper: true,
             recv_proper: false,
+            recv_ontime: false
         };
         (dum1, dum2, dum3)
     }
@@ -206,12 +209,11 @@ mod test {
         }
         buf[0] = 0;
         match dum3.recv_from(&mut buf).await {
-            Ok((size, _)) => {
-                assert_eq!(size, 0);
-                assert_eq!(buf[0], 0);
+            Ok(_) => {
+                assert_eq!(3, 4);
             }
             Err(_) => {
-                assert_eq!(3, 4);
+                assert_eq!(3, 3);
             }
         }
     }
@@ -238,5 +240,21 @@ mod test {
         assert_eq!(size2, 1);
         let (size3, _) = conn3.recv(&mut buf).await;
         assert_eq!(size3, 0);
+    }
+
+    #[tokio::test]
+    async fn test_dummy_connection_reliability() {
+        let (dum1, dum2, dum3) = create_dummy_sockets();
+
+        let mut conn1 = connection::init_conn::<DummySocket>(dum1);
+        let mut conn2 = connection::init_conn::<DummySocket>(dum2);
+        let mut conn3 = connection::init_conn::<DummySocket>(dum3);
+
+        let msg = *b"Hello world";
+        let ip1 = SocketAddr::from_str("127.0.0.1:1026").unwrap();
+
+        conn1.send_to(&ip1, &msg).await;
+        conn2.send_to(&ip1, &msg).await;
+        conn3.send_to(&ip1, &msg).await;
     }
 }
