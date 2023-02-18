@@ -1,7 +1,7 @@
 //implements trait that can be used to create fake socket for testing
 use async_trait::async_trait;
 use std::{net::SocketAddr, str::FromStr};
-use tokio::{io::Error, net::UdpSocket};
+use tokio::{io::Error, io::ErrorKind, net::UdpSocket};
 
 pub struct ActualSocket {
     pub socket: UdpSocket,
@@ -10,6 +10,7 @@ pub struct ActualSocket {
 pub struct DummySocket {
     pub send_proper: bool,
     pub recv_proper: bool,
+    pub recv_ontime: bool,
 }
 
 #[async_trait]
@@ -41,8 +42,11 @@ impl Socket for DummySocket {
         if self.recv_proper {
             message[0] = 1;
             Ok((1, SocketAddr::from_str("127.0.0.1:1025").unwrap()))
-        } else {
+        } else if self.recv_ontime {
             Ok((0, SocketAddr::from_str("127.0.0.1:1025").unwrap()))
+        } else {
+            let err = Error::new(ErrorKind::Other, "Simulated Error");
+            Err(err)
         }
     }
 }
