@@ -234,12 +234,18 @@ mod test {
         conn3.send_to(&ip1, &msg).await;
 
         let mut buf = [0u8; MTU];
-        let (size1, _) = conn1.recv(&mut buf).await;
-        assert_eq!(size1, 0);
-        let (size2, _) = conn2.recv(&mut buf).await;
-        assert_eq!(size2, 1);
-        let (size3, _) = conn3.recv(&mut buf).await;
-        assert_eq!(size3, 0);
+        match conn1.recv(&mut buf).await {
+            Ok((size, _)) => assert_eq!(size, 0),
+            Err(_) => assert_eq!(1, 2),
+        };
+        match conn2.recv(&mut buf).await {
+            Ok((size, _)) => assert_eq!(size, 1),
+            Err(_) => assert_eq!(2, 3),
+        };
+        match conn3.recv(&mut buf).await {
+            Ok(_) => assert_eq!(3, 4),
+            Err(_) => assert_eq!(3, 3),
+        };
     }
 
     #[tokio::test]
