@@ -137,8 +137,7 @@ mod test {
         }
     }
 
-    #[tokio::test]
-    async fn test_dummy_socket() {
+    fn create_dummy_sockets() -> (DummySocket, DummySocket, DummySocket) {
         let dum1 = DummySocket {
             send_proper: false,
             recv_proper: false,
@@ -151,6 +150,12 @@ mod test {
             send_proper: true,
             recv_proper: false,
         };
+        (dum1, dum2, dum3)
+    }
+
+    #[tokio::test]
+    async fn test_dummy_socket() {
+        let (dum1, dum2, dum3) = create_dummy_sockets();
         let msg = *b"Hello world";
         let ip1 = SocketAddr::from_str("127.0.0.1:1026").unwrap();
         //test sending
@@ -213,18 +218,8 @@ mod test {
 
     #[tokio::test]
     async fn test_dummy_connection_basic() {
-        let dum1 = DummySocket {
-            send_proper: false,
-            recv_proper: false,
-        };
-        let dum2 = DummySocket {
-            send_proper: true,
-            recv_proper: true,
-        };
-        let dum3 = DummySocket {
-            send_proper: true,
-            recv_proper: false,
-        };
+        let (dum1, dum2, dum3) = create_dummy_sockets();
+
         let mut conn1 = connection::init_conn::<DummySocket>(dum1);
         let mut conn2 = connection::init_conn::<DummySocket>(dum2);
         let mut conn3 = connection::init_conn::<DummySocket>(dum3);
