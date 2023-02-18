@@ -56,7 +56,7 @@ pub fn init_conn<T: Socket>(socket: T) -> Connection<T> {
         protocol_n: HashMap::new(),
         encryption_token: HashMap::new(),
         lastmsg: HashMap::new(),
-        max_wait_time: Duration::from_millis(500)
+        max_wait_time: Duration::from_millis(500),
     }
 }
 
