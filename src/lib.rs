@@ -8,7 +8,6 @@ mod test {
     use std::str::FromStr;
 
     use crate::connection;
-    use crate::connection::MTU;
     use crate::parsing::*;
     use crate::socket::*;
 
@@ -187,7 +186,7 @@ mod test {
             }
         }
         //test receiving
-        let mut buf = [0u8; MTU];
+        let mut buf = [0u8; connection::MTU];
         match dum1.recv_from(&mut buf).await {
             Ok((size, _)) => {
                 assert_eq!(size, 0);
@@ -226,7 +225,7 @@ mod test {
         conn2.send_to(&ip1, &msg).await;
         conn3.send_to(&ip1, &msg).await;
 
-        let mut buf = [0u8; MTU];
+        let mut buf = [0u8; connection::MTU];
         match conn1.recv(&mut buf).await {
             Ok((size, _)) => assert_eq!(size, 0),
             Err(_) => assert_eq!(1, 2),
@@ -253,7 +252,7 @@ mod test {
         conn2.send_to(&ip1, &msg).await;
         conn3.send_to(&ip1, &msg).await;
 
-        let mut buf = [0u8; MTU];
+        let mut buf = [0u8; connection::MTU];
         assert_eq!(conn1.reliable_recv(&mut buf).await.is_some(), true);
         assert_eq!(conn2.reliable_recv(&mut buf).await.is_some(), true);
         assert_eq!(conn3.reliable_recv(&mut buf).await.is_none(), true);
