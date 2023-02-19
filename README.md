@@ -30,7 +30,7 @@ Both the client and server have async network request support.
 
 - Send client and server data along with public keys in a user-friendly way: just have both parties send a small code which encodes all this info so they don't have to type it out. The exact details can be worked out later.
 
-- Send multiple files at once.
+- Send multiple files at once. This will require some additional handshaking implemented in the custom protocol
 
 - Server should be able to perform NAT traversal for a new client that wants to connect to a running instance instead of having to run another instance of the program
 
