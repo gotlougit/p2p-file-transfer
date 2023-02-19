@@ -31,6 +31,7 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
     }
 }
 
+//TODO: standardize location of external STUN servers
 async fn get_external_and_nat(socket: &UdpSocket) {
     println!("Internal IP:port is {}", socket.local_addr().unwrap());
     let ip1 = get_external_info(socket, "5.178.34.84:3478".to_string()).await;
