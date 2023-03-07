@@ -7,7 +7,6 @@ mod test {
     use std::net::SocketAddr;
     use std::str::FromStr;
 
-    use crate::connection;
     use crate::parsing::*;
     use crate::socket::*;
 
@@ -157,6 +156,7 @@ mod test {
 
     #[tokio::test]
     async fn test_dummy_socket() {
+        use crate::connection::MTU;
         let (dum1, dum2, dum3) = create_dummy_sockets();
         let msg = *b"Hello world";
         let ip1 = SocketAddr::from_str("127.0.0.1:1026").unwrap();
@@ -186,7 +186,7 @@ mod test {
             }
         }
         //test receiving
-        let mut buf = [0u8; connection::MTU];
+        let mut buf = [0u8; MTU];
         match dum1.recv_from(&mut buf).await {
             Ok((size, _)) => {
                 assert_eq!(size, 0);
@@ -212,6 +212,7 @@ mod test {
 
     #[tokio::test]
     async fn test_dummy_connection_basic() {
+        use crate::connection;
         let (dum1, dum2, dum3) = create_dummy_sockets();
 
         let mut conn1 = connection::init_conn::<DummySocket>(dum1);
@@ -239,6 +240,7 @@ mod test {
 
     #[tokio::test]
     async fn test_dummy_connection_reliability() {
+        use crate::connection;
         let (dum1, dum2, dum3) = create_dummy_sockets();
 
         let mut conn1 = connection::init_conn::<DummySocket>(dum1);
