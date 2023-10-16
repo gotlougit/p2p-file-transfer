@@ -1,7 +1,7 @@
 //implements server object which is capable of handling multiple clients at once
-use memmap2::Mmap;
 use std::collections::HashMap;
-use std::fs::OpenOptions;
+use std::fs::File;
+use std::io::Read;
 use std::net::SocketAddr;
 use tracing::{debug, error, info, warn};
 
@@ -14,7 +14,7 @@ use crate::socket::Socket;
 
 pub struct Server<T: Socket> {
     connection: connection::Connection<T>,
-    data: Mmap,
+    data: Vec<u8>,
     size_msg: Vec<u8>,
     src_state_map: HashMap<SocketAddr, ClientState>,
     authchecker: auth::AuthChecker,
@@ -25,22 +25,22 @@ pub fn init<T: Socket>(
     filename: String,
     authtoken: String,
 ) -> Server<T> {
-    let fd = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .create(false)
-        .open(&filename)
-        .unwrap();
-    unsafe {
-        let mmap = Mmap::map(&fd).unwrap();
-        let filesize = mmap.len();
-        Server {
-            connection,
-            data: mmap,
-            size_msg: parsing::filesize_packet(filesize),
-            src_state_map: HashMap::new(),
-            authchecker: auth::init(authtoken, filename),
-        }
+    // let fd = OpenOptions::new()
+    //     .read(true)
+    //     .write(false)
+    //     .create(false)
+    //     .open(&filename)
+    //     .unwrap();
+    let mut fd = File::open(&filename).unwrap();
+    let mut buf = Vec::new();
+    fd.read_to_end(&mut buf).unwrap();
+    let filesize = buf.len();
+    Server {
+        connection,
+        data: buf,
+        size_msg: parsing::filesize_packet(filesize),
+        src_state_map: HashMap::new(),
+        authchecker: auth::init(authtoken, filename),
     }
 }
 

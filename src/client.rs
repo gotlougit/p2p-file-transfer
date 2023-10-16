@@ -1,5 +1,4 @@
 //implements client object which is capable of handling one file from one server
-use memmap2::MmapMut;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{remove_file, File, OpenOptions};
 use std::io::{stdin, Seek, SeekFrom, Write};
@@ -226,10 +225,8 @@ impl<T: Socket> Client<T> {
         let mut last = 0;
         for (offset, data) in self.packet_cache.iter() {
             last = offset + data.len();
-            unsafe {
-                let mut mmap = MmapMut::map_mut(&self.file).unwrap();
-                mmap[*offset..last].copy_from_slice(&data[..]);
-            };
+            self.file.seek(SeekFrom::Start(*offset as u64)).unwrap();
+            self.file.write_all(&data).unwrap();
         }
         self.packet_cache.clear();
         last
