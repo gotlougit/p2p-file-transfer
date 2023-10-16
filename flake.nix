@@ -13,8 +13,6 @@
         '';
         buildInputs = [
           pkgs.pkg-config
-          pkgs.openssl.dev
-          pkgs.sqlite.dev
           pkgs.rustc
           pkgs.cargo
           pkgs.rustfmt
