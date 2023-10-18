@@ -1,5 +1,4 @@
 use quinn::{ClientConfig, Endpoint, EndpointConfig};
-use std::net::{IpAddr, Ipv4Addr};
 use std::{error::Error, net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
 
