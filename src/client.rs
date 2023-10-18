@@ -58,7 +58,6 @@ pub async fn run_client(
         .await
         .unwrap();
 
-    println!("[client] connected: addr={}", connection.remote_address());
     let (mut tx, mut rx) = connection.open_bi().await.unwrap();
     tx.write_all(format!("{} {}", filename, auth).as_bytes())
         .await
