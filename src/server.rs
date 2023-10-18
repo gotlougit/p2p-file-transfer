@@ -1,5 +1,6 @@
+use anyhow::Result;
 use quinn::{Endpoint, EndpointConfig, ServerConfig};
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::net::UdpSocket;
 
 /// Constructs a QUIC endpoint configured to listen for incoming connections on a certain address
@@ -9,7 +10,7 @@ use tokio::net::UdpSocket;
 ///
 /// - a stream of incoming QUIC connections
 /// - server certificate serialized into DER format
-pub fn make_server_endpoint(socket: UdpSocket) -> Result<(Endpoint, Vec<u8>), Box<dyn Error>> {
+fn make_server_endpoint(socket: UdpSocket) -> Result<(Endpoint, Vec<u8>)> {
     let (server_config, server_cert) = configure_server()?;
     let endpoint = Endpoint::new(
         EndpointConfig::default(),
@@ -22,7 +23,7 @@ pub fn make_server_endpoint(socket: UdpSocket) -> Result<(Endpoint, Vec<u8>), Bo
 }
 
 /// Returns default server configuration along with its certificate.
-pub fn configure_server() -> Result<(ServerConfig, Vec<u8>), Box<dyn Error>> {
+fn configure_server() -> Result<(ServerConfig, Vec<u8>)> {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
     let cert_der = cert.serialize_der().unwrap();
     let priv_key = cert.serialize_private_key_der();
