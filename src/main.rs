@@ -3,6 +3,7 @@ use std::env;
 use tracing::error;
 
 mod client;
+mod file;
 mod nat;
 mod server;
 
