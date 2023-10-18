@@ -6,7 +6,6 @@ use tokio::net::UdpSocket;
 use tracing::{error, info, warn};
 
 const DUMMY_MSG_NUM: usize = 5;
-const MTU: usize = 1280;
 const MAX_WAIT_TIME: Duration = Duration::from_millis(500);
 const NAT_SYNC_TIME: Duration = Duration::from_secs(15);
 
@@ -46,7 +45,7 @@ async fn init_nat_traversal(sock: &UdpSocket, ip: &SocketAddr) -> Result<bool> {
     let dummymsg = *b"HELLOWORLD";
     for _ in 0..DUMMY_MSG_NUM {
         sock.send_to(&dummymsg, ip).await?;
-        let mut buf = [0u8; MTU];
+        let mut buf = Vec::new();
         let recv_future = sock.recv_from(&mut buf);
         match tokio::time::timeout(MAX_WAIT_TIME, recv_future).await {
             Ok(res) => match res {
