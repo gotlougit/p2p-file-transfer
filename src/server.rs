@@ -42,9 +42,9 @@ pub async fn run_server(socket: UdpSocket) {
     let conn = endpoint.accept().await.unwrap();
     let (mut tx, mut rx) = conn.await.unwrap().accept_bi().await.unwrap();
     let buf = rx.read_to_end(usize::max_value()).await.unwrap();
-    let xyz = std::str::from_utf8(&buf).unwrap();
-    if xyz.len() != 0 {
-        println!("Got message: {}", xyz);
+    let msg = std::str::from_utf8(&buf).unwrap();
+    if msg.len() != 0 {
+        println!("Got message: {}", msg);
     }
     tx.write_all(b"Hello world!\n").await.unwrap();
     tx.finish().await.unwrap();
