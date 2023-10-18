@@ -9,14 +9,16 @@ mod server;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+    // TODO: use clap crate for CLI arguments
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        error!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve>");
+    if args.len() != 4 {
+        error!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve> <pre_shared_secret>");
     }
 
+    // client mode or server mode
     let mode = &args[1];
-
-    let auth = String::from("11111111"); //for testing purposes only!
+    // pre shared secret which acts as a deterrent against MITM attacks
+    let auth = &args[3];
 
     if mode == "server" {
         let filename = &args[2];
