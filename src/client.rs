@@ -35,7 +35,12 @@ pub fn configure_client() -> ClientConfig {
     ClientConfig::new(Arc::new(crypto))
 }
 
-pub async fn run_client(socket: UdpSocket, server_addr: SocketAddr) -> Result<(), Box<dyn Error>> {
+pub async fn run_client(
+    socket: UdpSocket,
+    server_addr: SocketAddr,
+    filename: &str,
+    auth: &str,
+) -> Result<(), Box<dyn Error>> {
     let client_config = configure_client();
     let mut endpoint = Endpoint::new(
         EndpointConfig::default(),
@@ -55,16 +60,16 @@ pub async fn run_client(socket: UdpSocket, server_addr: SocketAddr) -> Result<()
 
     println!("[client] connected: addr={}", connection.remote_address());
     let (mut tx, mut rx) = connection.open_bi().await.unwrap();
-    tx.write_all(b"Hello world this is test").await.unwrap();
+    tx.write_all(format!("{} {}", filename, auth).as_bytes())
+        .await
+        .unwrap();
     tx.finish().await.unwrap();
-    let buf = rx.read_to_end(usize::max_value()).await.unwrap();
-    let xyz = std::str::from_utf8(&buf).unwrap();
-    if xyz.len() != 0 {
-        println!("Got message: {}", xyz);
-    }
+    let data_buffer = rx.read_to_end(usize::MAX).await.unwrap();
     connection.close(0u32.into(), b"done");
     // Make sure the server has a chance to clean up
     endpoint.wait_idle().await;
-
+    crate::file::dump_to_file(filename, &data_buffer)
+        .await
+        .unwrap();
     Ok(())
 }

@@ -2,6 +2,7 @@ use anyhow::Result;
 use quinn::{Endpoint, EndpointConfig, ServerConfig};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
+use tracing::error;
 
 /// Constructs a QUIC endpoint configured to listen for incoming connections on a certain address
 /// and port.
@@ -38,15 +39,22 @@ fn configure_server() -> Result<(ServerConfig, Vec<u8>)> {
 }
 
 /// Runs a QUIC server bound to given address.
-pub async fn run_server(socket: UdpSocket) {
+pub async fn run_server(socket: UdpSocket, filename: &str, auth: &str) {
     let (endpoint, _server_cert) = make_server_endpoint(socket).unwrap();
     let conn = endpoint.accept().await.unwrap();
     let (mut tx, mut rx) = conn.await.unwrap().accept_bi().await.unwrap();
     let buf = rx.read_to_end(usize::max_value()).await.unwrap();
-    let msg = std::str::from_utf8(&buf).unwrap();
-    if msg.len() != 0 {
-        println!("Got message: {}", msg);
+    let msg: Vec<_> = std::str::from_utf8(&buf)
+        .unwrap()
+        .split_whitespace()
+        .collect();
+    if msg.len() == 2 && msg[0] == filename && msg[1] == auth {
+        eprintln!("Got good message from client");
+    } else {
+        error!("Bad message; could not authenticate: {} {}", msg[0], msg[1]);
+        return;
     }
-    tx.write_all(b"Hello world!\n").await.unwrap();
+    let buffer = crate::file::get_file_contents(filename).await.unwrap();
+    tx.write_all(&buffer).await.unwrap();
     tx.finish().await.unwrap();
 }

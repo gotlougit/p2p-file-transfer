@@ -24,11 +24,13 @@ async fn main() -> Result<()> {
     if mode == "server" {
         let filename = &args[2];
         let (serversock, _addr) = crate::nat::get_nat_traversed_socket().await.unwrap();
-        crate::server::run_server(serversock).await;
+        crate::server::run_server(serversock, filename, auth).await;
     } else if mode == "client" {
         let file_to_get = &args[2];
         let (sock, server_addr) = crate::nat::get_nat_traversed_socket().await.unwrap();
-        crate::client::run_client(sock, server_addr).await.unwrap();
+        crate::client::run_client(sock, server_addr, file_to_get, auth)
+            .await
+            .unwrap();
     } else {
         error!("Incorrect args entered!");
     }
