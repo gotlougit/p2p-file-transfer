@@ -16,17 +16,13 @@ Both the client and server have async network request support.
 
 ## Implemented Features
 
-- Custom UDP-based basic protocol to transfer files as well as provide groundwork for implementing encryption support.
+- Custom QUIC-based basic protocol to transfer files as well as provide encryption.
 
 - NAT traversal code which temporarily opens up ports between client and server to communicate with each other.
 
 - A very very basic level of support for authentication and authorization. This will become more important after encryption is implemented and the program is ready for general usage.
 
-- Tests for the protocol and raw networking code using a dummy socket interface to avoid creating separate OS sockets and complicating things
-
 ## Goals
-
-- Encryption: almost every single communication should be completely encrypted, so there is no way to tell what file is being transferred.
 
 - Send client and server data along with public keys in a user-friendly way: just have both parties send a small code which encodes all this info so they don't have to type it out. The exact details can be worked out later.
 
@@ -39,5 +35,3 @@ Both the client and server have async network request support.
 Alpha: I am basically learning network programming through this. This is in NO way usable right now.
 
 Right now, it is able to make direct connections through easy NAT and transfer one file from one machine (called a server) to another machine (called a client) over the Internet.
-
-Thanks to implementing Go Back N (albeit not in a traditional fashion), it is able to send files with fairly good speeds, although this does need major improvements
