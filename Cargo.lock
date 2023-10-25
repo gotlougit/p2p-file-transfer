@@ -209,6 +209,7 @@ dependencies = [
  "async-trait",
  "base64",
  "quinn",
+ "quinn-proto",
  "rcgen",
  "rustls",
  "stunclient",
