@@ -1,8 +1,10 @@
+use crate::config::Config;
 use anyhow::Result;
 use std::env;
 use tracing::error;
 
 mod client;
+mod config;
 mod file;
 mod nat;
 mod server;
@@ -10,6 +12,11 @@ mod server;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+    let Config {
+        public_key,
+        private_key,
+        trusted_keys,
+    } = crate::config::get_all_vars()?;
     // TODO: use clap crate for CLI arguments
     let args: Vec<String> = env::args().collect();
     if args.len() != 4 {
@@ -24,7 +31,7 @@ async fn main() -> Result<()> {
     if mode == "server" {
         let filename = &args[2];
         let (serversock, _addr) = crate::nat::get_nat_traversed_socket().await.unwrap();
-        crate::server::run_server(serversock, filename, auth).await;
+        crate::server::run_server(serversock, filename, auth, public_key, private_key).await;
     } else if mode == "client" {
         let file_to_get = &args[2];
         let (sock, server_addr) = crate::nat::get_nat_traversed_socket().await.unwrap();

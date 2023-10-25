@@ -11,8 +11,12 @@ use tracing::error;
 ///
 /// - a stream of incoming QUIC connections
 /// - server certificate serialized into DER format
-fn make_server_endpoint(socket: UdpSocket) -> Result<(Endpoint, Vec<u8>)> {
-    let (server_config, server_cert) = configure_server()?;
+fn make_server_endpoint(
+    socket: UdpSocket,
+    public_key: Vec<u8>,
+    private_key: Vec<u8>,
+) -> Result<(Endpoint, Vec<u8>)> {
+    let (server_config, server_cert) = configure_server(public_key, private_key)?;
     let endpoint = Endpoint::new(
         EndpointConfig::default(),
         Some(server_config),
@@ -24,10 +28,7 @@ fn make_server_endpoint(socket: UdpSocket) -> Result<(Endpoint, Vec<u8>)> {
 }
 
 /// Returns default server configuration along with its certificate.
-fn configure_server() -> Result<(ServerConfig, Vec<u8>)> {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    let cert_der = cert.serialize_der().unwrap();
-    let priv_key = cert.serialize_private_key_der();
+fn configure_server(cert_der: Vec<u8>, priv_key: Vec<u8>) -> Result<(ServerConfig, Vec<u8>)> {
     let priv_key = rustls::PrivateKey(priv_key);
     let cert_chain = vec![rustls::Certificate(cert_der.clone())];
 
@@ -39,8 +40,14 @@ fn configure_server() -> Result<(ServerConfig, Vec<u8>)> {
 }
 
 /// Runs a QUIC server bound to given address.
-pub async fn run_server(socket: UdpSocket, filename: &str, auth: &str) {
-    let (endpoint, _server_cert) = make_server_endpoint(socket).unwrap();
+pub async fn run_server(
+    socket: UdpSocket,
+    filename: &str,
+    auth: &str,
+    public_key: Vec<u8>,
+    private_key: Vec<u8>,
+) {
+    let (endpoint, _server_cert) = make_server_endpoint(socket, public_key, private_key).unwrap();
     let conn = endpoint.accept().await.unwrap();
     let (mut tx, mut rx) = conn.await.unwrap().accept_bi().await.unwrap();
     let buf = rx.read_to_end(usize::max_value()).await.unwrap();

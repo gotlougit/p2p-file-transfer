@@ -17,3 +17,5 @@ rustls = { version = "0.21.7", features = [ "dangerous_configuration" ] }
 rcgen = "0.11.3"
 anyhow = "1.0.75"
 thiserror = "1.0.49"
+toml = "0.8.4"
+base64 = "0.21.5"
