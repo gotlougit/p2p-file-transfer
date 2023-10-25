@@ -2,34 +2,15 @@ use quinn::{ClientConfig, Endpoint, EndpointConfig};
 use std::{error::Error, net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
 
-/// Dummy certificate verifier that treats any certificate as valid.
-/// NOTE, such verification is vulnerable to MITM attacks, but convenient for testing.
-struct SkipServerVerification;
-
-impl SkipServerVerification {
-    fn new() -> Arc<Self> {
-        Arc::new(Self)
+pub fn configure_client(trusted_keys: Vec<Vec<u8>>) -> ClientConfig {
+    let mut root_store = rustls::RootCertStore::empty();
+    for key in trusted_keys {
+        let cert = rustls::Certificate(key);
+        root_store.add(&cert).unwrap();
     }
-}
-
-impl rustls::client::ServerCertVerifier for SkipServerVerification {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::Certificate,
-        _intermediates: &[rustls::Certificate],
-        _server_name: &rustls::ServerName,
-        _scts: &mut dyn Iterator<Item = &[u8]>,
-        _ocsp_response: &[u8],
-        _now: std::time::SystemTime,
-    ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::ServerCertVerified::assertion())
-    }
-}
-
-pub fn configure_client() -> ClientConfig {
     let crypto = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_custom_certificate_verifier(SkipServerVerification::new())
+        .with_root_certificates(root_store)
         .with_no_client_auth();
 
     ClientConfig::new(Arc::new(crypto))
@@ -40,8 +21,9 @@ pub async fn run_client(
     server_addr: SocketAddr,
     filename: &str,
     auth: &str,
+    trusted_keys: Vec<Vec<u8>>,
 ) -> Result<(), Box<dyn Error>> {
-    let client_config = configure_client();
+    let client_config = configure_client(trusted_keys);
     let mut endpoint = Endpoint::new(
         EndpointConfig::default(),
         None,
@@ -52,23 +34,32 @@ pub async fn run_client(
     endpoint.set_default_client_config(client_config);
 
     // connect to server
-    let connection = endpoint
-        .connect(server_addr, "localhost")
-        .unwrap()
-        .await
-        .unwrap();
-
-    let (mut tx, mut rx) = connection.open_bi().await.unwrap();
-    tx.write_all(format!("{} {}", filename, auth).as_bytes())
-        .await
-        .unwrap();
-    tx.finish().await.unwrap();
-    let data_buffer = rx.read_to_end(usize::MAX).await.unwrap();
-    connection.close(0u32.into(), b"done");
-    // Make sure the server has a chance to clean up
-    endpoint.wait_idle().await;
-    crate::file::dump_to_file(filename, &data_buffer)
-        .await
-        .unwrap();
-    Ok(())
+    match endpoint.connect(server_addr, "localhost").unwrap().await {
+        Ok(connection) => {
+            match connection.open_bi().await {
+                Ok((mut tx, mut rx)) => {
+                    tx.write_all(format!("{} {}", filename, auth).as_bytes())
+                        .await
+                        .unwrap();
+                    tx.finish().await.unwrap();
+                    let data_buffer = rx.read_to_end(usize::MAX).await.unwrap();
+                    connection.close(0u32.into(), b"done");
+                    // Make sure the server has a chance to clean up
+                    endpoint.wait_idle().await;
+                    crate::file::dump_to_file(filename, &data_buffer)
+                        .await
+                        .unwrap();
+                    Ok(())
+                }
+                Err(_) => {
+                    eprintln!("This certificate is not trusted! Please mark it as such!");
+                    Ok(())
+                }
+            }
+        }
+        Err(_) => {
+            eprintln!("This certificate is not trusted! Please mark it as such!");
+            Ok(())
+        }
+    }
 }

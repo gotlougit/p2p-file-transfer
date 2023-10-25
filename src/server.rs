@@ -1,5 +1,5 @@
 use anyhow::Result;
-use quinn::{Endpoint, EndpointConfig, ServerConfig};
+use quinn::{ConnectionError, Endpoint, EndpointConfig, ServerConfig};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tracing::error;
@@ -49,19 +49,29 @@ pub async fn run_server(
 ) {
     let (endpoint, _server_cert) = make_server_endpoint(socket, public_key, private_key).unwrap();
     let conn = endpoint.accept().await.unwrap();
-    let (mut tx, mut rx) = conn.await.unwrap().accept_bi().await.unwrap();
-    let buf = rx.read_to_end(usize::max_value()).await.unwrap();
-    let msg: Vec<_> = std::str::from_utf8(&buf)
-        .unwrap()
-        .split_whitespace()
-        .collect();
-    if msg.len() == 2 && msg[0] == filename && msg[1] == auth {
-        eprintln!("Got good message from client");
-    } else {
-        error!("Bad message; could not authenticate: {} {}", msg[0], msg[1]);
-        return;
+    match conn.await {
+        Ok(conn) => {
+            let (mut tx, mut rx) = conn.accept_bi().await.unwrap();
+            let buf = rx.read_to_end(usize::max_value()).await.unwrap();
+            let msg: Vec<_> = std::str::from_utf8(&buf)
+                .unwrap()
+                .split_whitespace()
+                .collect();
+            if msg.len() == 2 && msg[0] == filename && msg[1] == auth {
+                eprintln!("Got good message from client");
+            } else {
+                error!("Bad message; could not authenticate: {} {}", msg[0], msg[1]);
+                return;
+            }
+            let buffer = crate::file::get_file_contents(filename).await.unwrap();
+            tx.write_all(&buffer).await.unwrap();
+            tx.finish().await.unwrap();
+        }
+        Err(ConnectionError::ConnectionClosed(close)) => {
+            if close.error_code == quinn_proto::TransportErrorCode::APPLICATION_ERROR {
+                eprintln!("This certificate is not trusted by the client! Please have the client mark it as trusted");
+            }
+        }
+        _ => todo!(),
     }
-    let buffer = crate::file::get_file_contents(filename).await.unwrap();
-    tx.write_all(&buffer).await.unwrap();
-    tx.finish().await.unwrap();
 }
