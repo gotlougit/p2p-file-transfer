@@ -20,6 +20,7 @@
           pkgs.rust-analyzer
           pkgs.cargo-rr
           pkgs.tree-sitter
+          pkgs.gdb
         ];
       };
     };
