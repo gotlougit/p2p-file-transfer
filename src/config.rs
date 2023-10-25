@@ -81,7 +81,7 @@ pub fn get_all_vars() -> Result<Config> {
         .iter()
         .map(|val| {
             general_purpose::STANDARD
-                .decode(val.as_str().unwrap().to_string())
+                .decode(val.as_str().unwrap())
                 .unwrap()
         })
         .collect();
