@@ -29,18 +29,51 @@ fn get_config_path() -> String {
 fn create_config_folder(config_path: &str, public_key: &[u8], private_key: &[u8]) -> Result<()> {
     eprintln!("Creating the config folder and default config");
     fs::create_dir(config_path)?;
-    let mut config = Table::new();
     let encoded_public_key = general_purpose::STANDARD.encode(public_key);
     let encoded_private_key = general_purpose::STANDARD.encode(private_key);
     let trusted_keys: Vec<String> = Vec::new();
-    config.insert("public_key".to_string(), encoded_public_key.into());
-    config.insert("private_key".to_string(), encoded_private_key.into());
+    write_config(
+        config_path,
+        &encoded_public_key,
+        &encoded_private_key,
+        trusted_keys,
+    )
+}
+
+fn write_config(
+    config_path: &str,
+    public_key: &str,
+    private_key: &str,
+    trusted_keys: Vec<String>,
+) -> Result<()> {
+    let mut config = Table::new();
+    config.insert("public_key".to_string(), public_key.into());
+    config.insert("private_key".to_string(), private_key.into());
     config.insert("trusted_keys".to_string(), trusted_keys.into());
     let rawconf = config.to_string();
     let conffilename = config_path.to_string() + "/filetransfer.toml";
     let mut file = fs::File::create(conffilename)?;
     file.write_all(rawconf.as_bytes())?;
     Ok(())
+}
+
+pub fn add_trusted_key(config_path: &str, key: Vec<u8>) -> Result<()> {
+    let mut conf = get_all_vars().unwrap();
+    conf.trusted_keys.push(key);
+    let encoded_public_key = general_purpose::STANDARD.encode(conf.public_key);
+    let encoded_private_key = general_purpose::STANDARD.encode(conf.private_key);
+    let encoded_trusted_keys: Vec<_> = conf
+        .trusted_keys
+        .iter()
+        .map(|val| general_purpose::STANDARD.encode(val))
+        .collect();
+
+    write_config(
+        config_path,
+        &encoded_public_key,
+        &encoded_private_key,
+        encoded_trusted_keys,
+    )
 }
 
 pub fn get_all_vars() -> Result<Config> {
