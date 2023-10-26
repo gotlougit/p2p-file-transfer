@@ -97,9 +97,6 @@ pub fn get_all_vars() -> Result<Config> {
         .unwrap()
         .replace('\"', "");
 
-    println!("Your public key is: {}", encoded_public_key);
-    println!("Please share this key to recipients for establishing a secure connection");
-
     let public_key = general_purpose::STANDARD.decode(encoded_public_key)?;
     let encoded_private_key = conf
         .get("private_key")

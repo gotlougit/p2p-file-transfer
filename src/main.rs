@@ -1,5 +1,6 @@
 use crate::config::Config;
 use anyhow::Result;
+use base64::{engine::general_purpose, Engine};
 use clap::{Parser, Subcommand};
 
 mod client;
@@ -51,6 +52,11 @@ async fn main() -> Result<()> {
         } = crate::config::get_all_vars()?;
         match cmd {
             Command::Server { filename, auth } => {
+                let encoded_public_key = general_purpose::STANDARD.encode(&public_key);
+                println!("Your public key is: {}", encoded_public_key);
+                println!(
+                    "Please share this key to recipients for establishing a secure connection"
+                );
                 let (serversock, _addr) = crate::nat::get_nat_traversed_socket().await.unwrap();
                 crate::server::run_server(serversock, &filename, &auth, public_key, private_key)
                     .await?;
@@ -60,7 +66,7 @@ async fn main() -> Result<()> {
                 crate::client::run_client(sock, server_addr, &filename, &auth, trusted_keys)
                     .await?;
             }
-            Command::AddKey { key } => {
+            Command::AddKey { key: _ } => {
                 todo!();
             }
         };
