@@ -1,7 +1,6 @@
 use crate::config::Config;
 use anyhow::Result;
 use std::env;
-use tracing::error;
 
 mod client;
 mod config;
@@ -20,7 +19,7 @@ async fn main() -> Result<()> {
     // TODO: use clap crate for CLI arguments
     let args: Vec<String> = env::args().collect();
     if args.len() != 4 {
-        error!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve> <pre_shared_secret>");
+        eprintln!("Insufficient args entered! Usage: ./program client <file_to_get> or ./program server <file_to_serve> <pre_shared_secret>");
     }
 
     // client mode or server mode
@@ -39,7 +38,7 @@ async fn main() -> Result<()> {
             .await
             .unwrap();
     } else {
-        error!("Incorrect args entered!");
+        eprintln!("Incorrect args entered!");
     }
     Ok(())
 }

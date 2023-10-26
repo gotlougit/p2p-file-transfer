@@ -3,7 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 use stunclient::StunClient;
 use tokio::net::UdpSocket;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 const DUMMY_MSG_NUM: usize = 5;
 const MAX_WAIT_TIME: Duration = Duration::from_millis(500);
@@ -74,7 +74,7 @@ async fn get_external_info(socket: &UdpSocket, ip: String) -> SocketAddr {
             x
         }
         Err(_) => {
-            error!("Error at protocol.rs: STUN");
+            eprintln!("Error at protocol.rs: STUN");
             socket.local_addr().unwrap()
         }
     }

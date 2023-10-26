@@ -2,7 +2,6 @@ use anyhow::Result;
 use quinn::{ConnectionError, Endpoint, EndpointConfig, ServerConfig};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
-use tracing::error;
 
 /// Constructs a QUIC endpoint configured to listen for incoming connections on a certain address
 /// and port.
@@ -59,7 +58,7 @@ pub async fn run_server(
             if msg.len() == 2 && msg[0] == filename && msg[1] == auth {
                 eprintln!("Got good message from client");
             } else {
-                error!("Bad message; could not authenticate: {} {}", msg[0], msg[1]);
+                eprintln!("Bad message; could not authenticate: {} {}", msg[0], msg[1]);
             }
             let buffer = crate::file::get_file_contents(filename).await?;
             tx.write_all(&buffer).await?;
