@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     if mode == "server" {
         let filename = &args[2];
         let (serversock, _addr) = crate::nat::get_nat_traversed_socket().await.unwrap();
-        crate::server::run_server(serversock, filename, auth, public_key, private_key).await;
+        crate::server::run_server(serversock, filename, auth, public_key, private_key).await?;
     } else if mode == "client" {
         let file_to_get = &args[2];
         let (sock, server_addr) = crate::nat::get_nat_traversed_socket().await.unwrap();

@@ -20,10 +20,9 @@ fn make_server_endpoint(
     let endpoint = Endpoint::new(
         EndpointConfig::default(),
         Some(server_config),
-        socket.into_std().unwrap(),
+        socket.into_std()?,
         quinn::default_runtime().unwrap(),
-    )
-    .unwrap();
+    )?;
     Ok((endpoint, server_cert))
 }
 
@@ -46,13 +45,13 @@ pub async fn run_server(
     auth: &str,
     public_key: Vec<u8>,
     private_key: Vec<u8>,
-) {
-    let (endpoint, _server_cert) = make_server_endpoint(socket, public_key, private_key).unwrap();
+) -> Result<()> {
+    let (endpoint, _server_cert) = make_server_endpoint(socket, public_key, private_key)?;
     let conn = endpoint.accept().await.unwrap();
     match conn.await {
         Ok(conn) => {
-            let (mut tx, mut rx) = conn.accept_bi().await.unwrap();
-            let buf = rx.read_to_end(usize::max_value()).await.unwrap();
+            let (mut tx, mut rx) = conn.accept_bi().await?;
+            let buf = rx.read_to_end(usize::max_value()).await?;
             let msg: Vec<_> = std::str::from_utf8(&buf)
                 .unwrap()
                 .split_whitespace()
@@ -61,11 +60,10 @@ pub async fn run_server(
                 eprintln!("Got good message from client");
             } else {
                 error!("Bad message; could not authenticate: {} {}", msg[0], msg[1]);
-                return;
             }
-            let buffer = crate::file::get_file_contents(filename).await.unwrap();
-            tx.write_all(&buffer).await.unwrap();
-            tx.finish().await.unwrap();
+            let buffer = crate::file::get_file_contents(filename).await?;
+            tx.write_all(&buffer).await?;
+            tx.finish().await?;
         }
         Err(ConnectionError::ConnectionClosed(close)) => {
             if close.error_code == quinn_proto::TransportErrorCode::APPLICATION_ERROR {
@@ -73,5 +71,6 @@ pub async fn run_server(
             }
         }
         _ => todo!(),
-    }
+    };
+    Ok(())
 }

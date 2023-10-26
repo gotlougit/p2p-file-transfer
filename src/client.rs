@@ -1,5 +1,5 @@
 use quinn::{ClientConfig, Endpoint, EndpointConfig};
-use std::{error::Error, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
 
 pub fn configure_client(trusted_keys: Vec<Vec<u8>>) -> ClientConfig {
@@ -22,12 +22,12 @@ pub async fn run_client(
     filename: &str,
     auth: &str,
     trusted_keys: Vec<Vec<u8>>,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     let client_config = configure_client(trusted_keys);
     let mut endpoint = Endpoint::new(
         EndpointConfig::default(),
         None,
-        socket.into_std().unwrap(),
+        socket.into_std()?,
         quinn::default_runtime().unwrap(),
     )
     .unwrap();
@@ -39,16 +39,13 @@ pub async fn run_client(
             match connection.open_bi().await {
                 Ok((mut tx, mut rx)) => {
                     tx.write_all(format!("{} {}", filename, auth).as_bytes())
-                        .await
-                        .unwrap();
-                    tx.finish().await.unwrap();
-                    let data_buffer = rx.read_to_end(usize::MAX).await.unwrap();
+                        .await?;
+                    tx.finish().await?;
+                    let data_buffer = rx.read_to_end(usize::MAX).await?;
                     connection.close(0u32.into(), b"done");
                     // Make sure the server has a chance to clean up
                     endpoint.wait_idle().await;
-                    crate::file::dump_to_file(filename, &data_buffer)
-                        .await
-                        .unwrap();
+                    crate::file::dump_to_file(filename, &data_buffer).await?;
                     Ok(())
                 }
                 Err(_) => {
