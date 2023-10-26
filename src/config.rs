@@ -1,5 +1,4 @@
 use anyhow::Result;
-use base64::{engine::general_purpose, Engine};
 use std::env;
 use std::fs;
 use std::io::Write;
@@ -29,8 +28,8 @@ fn get_config_path() -> String {
 fn create_config_folder(config_path: &str, public_key: &[u8], private_key: &[u8]) -> Result<()> {
     eprintln!("Creating the config folder and default config");
     fs::create_dir(config_path)?;
-    let encoded_public_key = general_purpose::STANDARD.encode(public_key);
-    let encoded_private_key = general_purpose::STANDARD.encode(private_key);
+    let encoded_public_key = mnemonic::to_string(public_key);
+    let encoded_private_key = mnemonic::to_string(private_key);
     let trusted_keys: Vec<String> = Vec::new();
     write_config(
         config_path,
@@ -61,13 +60,9 @@ pub fn add_trusted_key(key: Vec<u8>) -> Result<()> {
     let config_path = get_config_path();
     let mut conf = get_all_vars().unwrap();
     conf.trusted_keys.push(key);
-    let encoded_public_key = general_purpose::STANDARD.encode(conf.public_key);
-    let encoded_private_key = general_purpose::STANDARD.encode(conf.private_key);
-    let encoded_trusted_keys: Vec<_> = conf
-        .trusted_keys
-        .iter()
-        .map(|val| general_purpose::STANDARD.encode(val))
-        .collect();
+    let encoded_public_key = mnemonic::to_string(conf.public_key);
+    let encoded_private_key = mnemonic::to_string(conf.private_key);
+    let encoded_trusted_keys: Vec<_> = conf.trusted_keys.iter().map(mnemonic::to_string).collect();
 
     write_config(
         &config_path,
@@ -98,14 +93,16 @@ pub fn get_all_vars() -> Result<Config> {
         .unwrap()
         .replace('\"', "");
 
-    let public_key = general_purpose::STANDARD.decode(encoded_public_key)?;
+    let mut public_key = Vec::new();
+    mnemonic::decode(encoded_public_key, &mut public_key)?;
     let encoded_private_key = conf
         .get("private_key")
         .unwrap()
         .as_str()
         .unwrap()
         .replace('\"', "");
-    let private_key = general_purpose::STANDARD.decode(encoded_private_key)?;
+    let mut private_key = Vec::new();
+    mnemonic::decode(encoded_private_key, &mut private_key)?;
 
     let trusted_keys: Vec<_> = conf
         .get("trusted_keys")
@@ -114,9 +111,9 @@ pub fn get_all_vars() -> Result<Config> {
         .unwrap()
         .iter()
         .map(|val| {
-            general_purpose::STANDARD
-                .decode(val.as_str().unwrap())
-                .unwrap()
+            let mut decoded_val = Vec::new();
+            mnemonic::decode(val.as_str().unwrap(), &mut decoded_val).unwrap();
+            decoded_val
         })
         .collect();
 

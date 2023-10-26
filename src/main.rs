@@ -1,6 +1,5 @@
 use crate::config::Config;
 use anyhow::Result;
-use base64::{engine::general_purpose, Engine};
 use clap::{Parser, Subcommand};
 
 mod client;
@@ -52,7 +51,7 @@ async fn main() -> Result<()> {
         } = crate::config::get_all_vars()?;
         match cmd {
             Command::Server { filename, auth } => {
-                let encoded_public_key = general_purpose::STANDARD.encode(&public_key);
+                let encoded_public_key = mnemonic::to_string(&public_key);
                 println!("Your public key is: {}", encoded_public_key);
                 println!(
                     "Please share this key to recipients for establishing a secure connection"
@@ -67,7 +66,8 @@ async fn main() -> Result<()> {
                     .await?;
             }
             Command::AddKey { key } => {
-                let decoded_key = general_purpose::STANDARD.decode(key)?;
+                let mut decoded_key = Vec::new();
+                mnemonic::decode(key, &mut decoded_key)?;
                 crate::config::add_trusted_key(decoded_key)?;
             }
         };
