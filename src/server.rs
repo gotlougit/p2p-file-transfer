@@ -56,7 +56,7 @@ pub async fn run_server(
                 .split_whitespace()
                 .collect();
             if msg.len() == 2 && msg[0] == filename && msg[1] == auth {
-                eprintln!("Got good message from client");
+                println!("Got good message from client");
             } else {
                 eprintln!("Bad message; could not authenticate: {} {}", msg[0], msg[1]);
             }
