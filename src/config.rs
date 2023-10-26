@@ -57,7 +57,8 @@ fn write_config(
     Ok(())
 }
 
-pub fn add_trusted_key(config_path: &str, key: Vec<u8>) -> Result<()> {
+pub fn add_trusted_key(key: Vec<u8>) -> Result<()> {
+    let config_path = get_config_path();
     let mut conf = get_all_vars().unwrap();
     conf.trusted_keys.push(key);
     let encoded_public_key = general_purpose::STANDARD.encode(conf.public_key);
@@ -69,7 +70,7 @@ pub fn add_trusted_key(config_path: &str, key: Vec<u8>) -> Result<()> {
         .collect();
 
     write_config(
-        config_path,
+        &config_path,
         &encoded_public_key,
         &encoded_private_key,
         encoded_trusted_keys,

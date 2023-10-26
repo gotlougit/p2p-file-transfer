@@ -66,8 +66,9 @@ async fn main() -> Result<()> {
                 crate::client::run_client(sock, server_addr, &filename, &auth, trusted_keys)
                     .await?;
             }
-            Command::AddKey { key: _ } => {
-                todo!();
+            Command::AddKey { key } => {
+                let decoded_key = general_purpose::STANDARD.decode(key)?;
+                crate::config::add_trusted_key(decoded_key)?;
             }
         };
     }
